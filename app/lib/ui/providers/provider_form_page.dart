@@ -538,6 +538,7 @@ class _ProviderFormPageState extends ConsumerState<ProviderFormPage> with FieldP
                 models: _models,
                 defaults: _editing?.defaults ?? const ModelDefaults(),
                 discovering: _discovering,
+                needsConnection: backend == null,
                 onDiscover: backend == null || busy ? null : _discover,
                 onAdd: busy ? null : _addByHand,
                 onOpen: busy ? null : _editModel,
@@ -604,6 +605,7 @@ class _ModelsCard extends StatelessWidget {
     required this.models,
     required this.defaults,
     required this.discovering,
+    required this.needsConnection,
     required this.onDiscover,
     required this.onAdd,
     required this.onOpen,
@@ -614,6 +616,11 @@ class _ModelsCard extends StatelessWidget {
   final List<ProviderModelSpec> models;
   final ModelDefaults defaults;
   final bool discovering;
+
+  /// True when there is no server connection, so discovery cannot run at all.
+  /// The fetch button stays visible but disabled, with the reason under it,
+  /// instead of silently greying out.
+  final bool needsConnection;
   final VoidCallback? onDiscover;
   final VoidCallback? onAdd;
   final ValueChanged<ProviderModelSpec>? onOpen;
@@ -631,22 +638,32 @@ class _ModelsCard extends StatelessWidget {
       margin: EdgeInsets.zero,
       footer: message == null ? null : Text(message!, style: TextStyle(color: colors.danger)),
       children: [
-        SettingsTile(
-          icon: AppIcons.fetchModels,
-          tinted: false,
-          title: discovering ? l10n.engineProviderFetchingModels : l10n.engineProviderFetchModels,
-          chevron: false,
-          trailing: discovering
-              ? Padding(
-                  padding: const EdgeInsets.only(right: SettingsMetrics.inset - SettingsMetrics.trailingPad),
-                  child: SizedBox.square(
-                    dimension: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: colors.textTertiary),
-                  ),
-                )
-              : null,
-          onTap: onDiscover,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: SizedBox(
+            width: double.infinity,
+            child: FilledButton.tonalIcon(
+              onPressed: onDiscover,
+              icon: discovering
+                  ? SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(AppIcons.fetchModels, size: 20),
+              label: Text(
+                discovering ? l10n.engineProviderFetchingModels : l10n.engineProviderFetchModels,
+              ),
+            ),
+          ),
         ),
+        if (needsConnection && !discovering)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            child: Text(
+              l10n.engineProviderWaitingEngine,
+              style: TextStyle(color: colors.textTertiary),
+            ),
+          ),
         for (final model in models)
           _ModelRow(
             model: model,
