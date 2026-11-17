@@ -638,23 +638,20 @@ class _ModelsCard extends StatelessWidget {
       margin: EdgeInsets.zero,
       footer: message == null ? null : Text(message!, style: TextStyle(color: colors.danger)),
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-          child: SizedBox(
-            width: double.infinity,
-            child: FilledButton.tonalIcon(
-              onPressed: onDiscover,
-              icon: discovering
-                  ? SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(AppIcons.fetchModels, size: 20),
-              label: Text(
-                discovering ? l10n.engineProviderFetchingModels : l10n.engineProviderFetchModels,
-              ),
-            ),
-          ),
+        SettingsTile(
+          icon: AppIcons.fetchModels,
+          title: discovering ? l10n.engineProviderFetchingModels : l10n.engineProviderFetchModels,
+          chevron: false,
+          trailing: discovering
+              ? Padding(
+                  padding: const EdgeInsets.only(right: SettingsMetrics.inset - SettingsMetrics.trailingPad),
+                  child: SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: colors.textTertiary),
+                  ),
+                )
+              : null,
+          onTap: onDiscover,
         ),
         if (needsConnection && !discovering)
           Padding(
