@@ -21,8 +21,6 @@ import io.github.ccch1mneyyy.dsh_app.MainActivity
 import io.github.ccch1mneyyy.dsh_app.R
 import io.github.ccch1mneyyy.dsh_app.icons.LauncherIconPlugin
 import io.github.ccch1mneyyy.dsh_app.icons.LauncherIcons
-import io.github.ccch1mneyyy.dsh_app.runtime.LaunchStart
-import io.github.ccch1mneyyy.dsh_app.runtime.RuntimeController
 import java.lang.ref.WeakReference
 import java.nio.ByteBuffer
 import java.util.concurrent.FutureTask
@@ -35,9 +33,8 @@ import kotlin.concurrent.thread
  *
  * - `begin` → what the launch window shows, for Dart's first frame: `{active, sdk, systemSplash,
  *   iconPx, icon (RGBA, premultiplied, iconPx × iconPx), background, backgroundBottom, dark,
- *   coldEngine, systemIcon}`. `coldEngine` ([LaunchEngine.cold]): the engine didn't run when this
- *   process's first activity was created, and LaunchStart is starting it now. `systemIcon`: the
- *   system's launch window shows the chosen icon (Android 13+ with its own splash theme in place,
+ *   coldEngine, systemIcon}`. `coldEngine` is always false now: there is no on-device engine
+ *   to wait for. `systemIcon`: the system's launch window shows the chosen icon (Android 13+
  *   [LaunchThemes]); otherwise it shows the page colour alone and the app brings the icon in.
  *   `icon` is always the chosen 桌面图标's.
  * - native → Dart `systemSplash {icon: [left, top, width, height] | null, removed}` (logical
@@ -65,12 +62,6 @@ object LaunchScreen {
 
     /** How long `begin` waits for the icon before answering without it. */
     private const val ICON_WAIT_MS = 600L
-
-    /** How long `begin` waits for LaunchStart to decide whether it starts the engine. */
-    private const val START_WAIT_MS = 400L
-
-    /** The engine already ran when this process's first activity was created. */
-    @Volatile private var engineRunningAtLaunch = false
 
     /** This launch's splash shows the chosen icon (Android 13+, its own splash theme in place). */
     @Volatile private var systemIcon = false
@@ -105,10 +96,6 @@ object LaunchScreen {
         if (!coldDart) return
         active = true
         this.activity = WeakReference(activity)
-        // Before LaunchStart's own start (posted after its device probe): what the app found.
-        engineRunningAtLaunch = runCatching {
-            RuntimeController.get(activity).phase == RuntimeController.Phase.RUNNING
-        }.getOrDefault(false)
         val sdk = Build.VERSION.SDK_INT
         val metrics = activity.resources.displayMetrics
         val iconPx = LaunchGeometry.iconPx(metrics.density)
@@ -291,17 +278,14 @@ object LaunchScreen {
         }
         val task = icon
         val base = info
-        val context = appContext
         thread(name = "dsh-launch-begin", isDaemon = true) {
             val pixels = try {
                 task?.get(ICON_WAIT_MS, TimeUnit.MILLISECONDS)
             } catch (_: Exception) {
                 null
             }
-            val deadline = SystemClock.elapsedRealtime() + START_WAIT_MS
-            while (LaunchStart.decided == null && SystemClock.elapsedRealtime() < deadline) Thread.sleep(10)
-            val phaseNow = context?.let { c -> runCatching { RuntimeController.get(c).phase.wire }.getOrNull() }
-            val cold = LaunchEngine.cold(engineRunningAtLaunch, LaunchStart.decided, phaseNow)
+            // No on-device engine: coldEngine is always false.
+            val cold = false
             main.post { result.success(base + mapOf("icon" to pixels, "coldEngine" to cold)) }
         }
     }
@@ -359,7 +343,6 @@ object LaunchScreen {
     private fun writeLine() {
         val line = LaunchGeometry.line(marks) ?: return
         Log.i(TAG, line)
-        appContext?.let { context -> runCatching { RuntimeController.get(context).note(line) } }
     }
 
     internal fun done() {

@@ -19,8 +19,6 @@ import io.github.ccch1mneyyy.dsh_app.launch.LaunchThemeSync
 import io.github.ccch1mneyyy.dsh_app.links.LinksPlugin
 import io.github.ccch1mneyyy.dsh_app.notify.NotifyPlugin
 import io.github.ccch1mneyyy.dsh_app.phone.PhonePlugin
-import io.github.ccch1mneyyy.dsh_app.runtime.LaunchStart
-import io.github.ccch1mneyyy.dsh_app.runtime.RuntimePlugin
 import io.github.ccch1mneyyy.dsh_app.share.SharePlugin
 import io.github.ccch1mneyyy.dsh_app.shortcuts.ShortcutsPlugin
 import io.github.ccch1mneyyy.dsh_app.update.UpdatePlugin
@@ -40,7 +38,6 @@ class MainActivity : FlutterActivity() {
         val cache = FlutterEngineCache.getInstance()
         cache.get(ENGINE_ID)?.let { return it }
         return FlutterEngine(applicationContext).also { engine ->
-            engine.plugins.add(RuntimePlugin())
             engine.plugins.add(PhonePlugin())
             engine.plugins.add(NotifyPlugin())
             engine.plugins.add(FilesPlugin())
@@ -83,8 +80,6 @@ class MainActivity : FlutterActivity() {
         packageManager.getActivityInfo(ComponentName(this, MainActivity::class.java), PackageManager.GET_META_DATA).metaData
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // 「打开 App 时自动启动」: DSH boots while Flutter starts, not after its first frame.
-        LaunchStart.onActivityCreate(this)
         // 启动画面: the first activity of a cold start hands the system's launch window to Dart's.
         LaunchScreen.onActivityCreate(this, coldDart = FlutterEngineCache.getInstance().get(ENGINE_ID) == null)
         // Recreated, or reopened from recents: the launch intent is an old notification tap or

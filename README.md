@@ -267,18 +267,16 @@ source tooling/env.sh
 flutter --version
 java -version
 
-bash runtime/build-runtime.sh arm64-v8a
 DSH_BETA_TOKEN_FILE= bash tooling/build-apk.sh -f arm64 --keep-daemon
 ```
 
 工具链脚本会下载 SDK/NDK 与模拟器镜像，并执行 Android SDK 许可接受步骤。默认安装到 `~/dev`；可通过 `DEV_ROOT` 指定独立目录。脚本会复用已有安装，构建前请核对版本。
 
-产物为 `app/build/app/outputs/flutter-apk/app-arm64-release.apk`。运行时构建使用仓库固定的版本与校验信息，并需要联网下载依赖。示例中的 `DSH_BETA_TOKEN_FILE=` 不嵌入维护者的内测通道令牌；`--keep-daemon` 保留 Gradle daemon，适合同时开发其他 Android 项目的环境。
+产物为 `app/build/app/outputs/flutter-apk/app-arm64-release.apk`。示例中的 `DSH_BETA_TOKEN_FILE=` 不嵌入维护者的内测通道令牌；`--keep-daemon` 保留 Gradle daemon，适合同时开发其他 Android 项目的环境。
 
-构建 x86_64 包时，先生成对应运行时：
+构建 x86_64 包时：
 
 ```bash
-bash runtime/build-runtime.sh x86_64
 DSH_BETA_TOKEN_FILE= bash tooling/build-apk.sh -f x64 --keep-daemon
 ```
 

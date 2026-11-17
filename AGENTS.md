@@ -1,6 +1,6 @@
 # AGENTS.md
 
-dsh-Go 是 DeepSeek Harness 的手机应用：Flutter 原生界面 + 纯 Dart 客户端 + 打过补丁的 DSH 引擎运行时。Android 版在 PRoot 里运行 `dsh web`；鸿蒙版共用同一套 Dart，宿主是 ArkTS（`app/ohos/`），引擎跑在 App 进程内的 Node 里（`runtime/ohos/`，见 [docs/architecture.md §3B](docs/architecture.md)）。改动前先读 [CONTRIBUTING.md](CONTRIBUTING.md)（贡献与验证契约）与 [docs/architecture.md](docs/architecture.md)。
+dsh-Go 是 DeepSeek Harness 的手机应用：Flutter 原生界面 + 纯 Dart 客户端。本 fork 已移除手机上的 DSH 引擎运行时，只接远程主机（SSH / Relay）。鸿蒙版共用同一套 Dart，宿主是 ArkTS（`app/ohos/`），鸿蒙本机引擎代码仍在 `runtime/ohos/`（见 [docs/architecture.md §3B](docs/architecture.md)），但 Dart 侧已不再驱动它。改动前先读 [CONTRIBUTING.md](CONTRIBUTING.md)（贡献与验证契约）与 [docs/architecture.md](docs/architecture.md)。
 
 ## 仓库布局
 
@@ -10,9 +10,7 @@ app/lib/l10n/parts/          界面文案的中英文 ARB 输入
 app/ohos/                    鸿蒙 ArkTS 宿主工程（Android 不读）
 packages/dsh_client/         纯 Dart 客户端：HTTP/SSE、mux、会话与删除 API
 packages/dsh_remote/         远程传输：WebRTC / LAN / TURN / 中继
-runtime/                     打补丁的 DSH 引擎运行时
-runtime/bridge/dsh-go-bridge/  App ↔ 引擎的 HTTP 桥（/dsh-go/v1/*，含会话删除路由）
-runtime/patches/             引擎补丁及其 pins.json（补丁与版本钉死，targetSets 分 android / ohos）
+runtime/                     本机引擎已移除：仅剩 iOS、鸿蒙与 media（Dart 侧不再驱动本机引擎）
 runtime/ohos/                鸿蒙本机引擎：Node 宿主、虚拟进程、生命周期、运行时组成
 sdk/plugin-kit/              插件 SDK
 tooling/                     APK 构建与构建号脚本；tooling/ohos/ 是鸿蒙构建、ArkTS 检查与门禁
@@ -28,7 +26,6 @@ docs/                        架构、发布、路线图、用户指南（鸿蒙
 (cd packages/dsh_client && dart pub get && dart analyze && dart test)
 (cd packages/dsh_remote && dart pub get && dart analyze && dart test)
 (cd sdk/plugin-kit && npm install && npm test)
-node --test runtime/tests/*.test.mjs                               # 引擎桥/补丁测试
 python3 app/tool/l10n_merge.py --check                             # 文案生成检查
 python3 app/tool/guide_sync.py --check                             # 用户指南同步检查
 tooling/build-apk.sh --build-name <x.y.z>                          # 构建 APK
@@ -53,7 +50,6 @@ CI（`.github/workflows/ci.yml`）在 PR 上跑通用检查和改动涉及的部
 - 不手改生成物：`app/build/`、`.dart_tool/`、生成的 l10n 产物等；改输入后运行对应生成器。
 - 界面文案改 `app/lib/l10n/parts/*.arb`，中英文同步，再跑 `python3 app/tool/l10n_merge.py`；不要手改生成结果。
 - 用户指南改 `docs/guide/`，再跑 `python3 app/tool/guide_sync.py`。鸿蒙版指南在 `docs/guide/harmony/`，功能在鸿蒙上有差异时两套都要改。
-- 引擎补丁在 `runtime/patches/`：补丁文件与 `pins.json` 保持同步，不手改正被补丁覆盖的产物。新补丁要登记进 `pins.json` 的 `targetSets`（`android`、`ohos` 或两者），没登记的补丁 rtbuild 拒绝构建。
 - 插件教学技能改 `sdk/plugin-kit/skill/` 或 SDK 对应输入，再跑 `node sdk/plugin-kit/scripts/sync-skill.mjs`。
 
 ### 行为与契约

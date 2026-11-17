@@ -19,12 +19,6 @@ val hasWholeReleaseKey = listOf("storeFile", "keyAlias").all { !keyProps.getProp
     listOf("storePassword", "keyPassword").all { !keyProps.getProperty(it).isNullOrEmpty() } &&
     file(keyProps.getProperty("storeFile")).exists()
 
-// Per-ABI runtime bundles produced by runtime/build-runtime.sh.
-val runtimeOut = rootProject.file("../../runtime/out")
-// libtawcroot.so for the opt-in tawcroot launch method (runtime/tawcroot/build.py; missing = unavailable).
-val tawcrootOut = rootProject.file("../../runtime/out-tawcroot")
-
-// versionCode is the build minute, same encoding as tooling/build_number.py:
 // (year - 2026) * 10^8 + MMDDhhmm at UTC+8. tooling/build-apk.sh passes it as
 // --build-number; this covers builds that skip the script (flutter run, the
 // IDE), where pubspec's `+1` placeholder would be a downgrade and make
@@ -50,10 +44,9 @@ android {
 
     defaultConfig {
         applicationId = "io.github.ccch1mneyyy.dsh_app"
-        // java.nio.file (symlinks while unpacking the rootfs) needs API 26.
+        // No on-device engine anymore: the local runtime (PRoot rootfs) was
+        // removed, so minSdk/targetSdk no longer serve it.
         minSdk = 26
-        // Target 28 like Termux, so the API 29+ exec restriction on app-private
-        // files does not apply to binaries inside the rootfs.
         targetSdk = 28
         versionCode = flutter.versionCode.takeIf { it > 1 } ?: buildMinuteVersionCode()
         versionName = flutter.versionName
@@ -71,40 +64,18 @@ android {
         }
     }
 
-    sourceSets {
-        getByName("main") {
-            jniLibs.srcDir(File(tawcrootOut, "jniLibs"))
-        }
-        getByName("arm64") {
-            assets.srcDir(File(runtimeOut, "arm64-v8a/assets"))
-            jniLibs.srcDir(File(runtimeOut, "arm64-v8a/jniLibs"))
-        }
-        getByName("x64") {
-            assets.srcDir(File(runtimeOut, "x86_64/assets"))
-            jniLibs.srcDir(File(runtimeOut, "x86_64/jniLibs"))
-        }
-    }
-
     packaging {
-        // proot and friends ship as lib*.so; they must be extracted to
-        // nativeLibraryDir so they can be executed.
         jniLibs {
             useLegacyPackaging = true
             // sherpa_onnx_android_* 1.13.4 and ORT Android 1.27.0 each ship an ORT 1.27.0
             // (sherpa's own build): either serves both, with the same exports.
             pickFirsts += "**/libonnxruntime.so"
-            // Keep the Termux binaries byte-identical to runtime/out (their hashes are in the manifest).
-            keepDebugSymbols += listOf("**/libproot.so", "**/libproot-loader.so", "**/libtalloc.so", "**/libandroid-shmem.so", "**/libtawcroot.so")
         }
     }
 
     lint {
         // targetSdk 28 is deliberate (see docs/architecture.md); not a Play build.
         disable += "ExpiredTargetSdkVersion"
-    }
-
-    androidResources {
-        noCompress += listOf("gz", "xz", "zst", "tar")
     }
 
     signingConfigs {
@@ -164,9 +135,6 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     // Android stubs do not implement JSONObject in local JVM upgrade tests.
     testImplementation("org.json:json:20240303")
-
-    // .tar.xz support for the rootfs bundle.
-    implementation("org.tukaani:xz:1.10")
 
     // 不打扰模式 (phone/background): a shell-uid privileged display via Shizuku or self-ADB.
     implementation("dev.rikka.shizuku:api:13.1.5")       // MIT

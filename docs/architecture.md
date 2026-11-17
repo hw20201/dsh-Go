@@ -65,7 +65,7 @@ Flutter Dart ── MethodChannel ──> Swift（DshPlugin / EngineChannel）
 | `packages/dsh_remote/` | 远程传输：账号、SSH 宿主、Noise IK 加密通道、WebRTC/中继、隧道 carrier | `lib/dsh_remote.dart` | 依赖 dsh_client 的 carrier 抽象 |
 | `packages/dsh_tavern/` | SillyTavern 兼容酒馆引擎（纯 Dart，191 个测试文件） | `lib/dsh_tavern.dart` | 与 AGPL 上游同许可，来源见 NOTICES |
 | `packages/dartssh2/` | vendored dartssh2 4.1.0 + 补丁 | `VENDORED.md` | app 的 SSH 链路用它 |
-| `runtime/` | 引擎运行时：构建脚本、锁定补丁、桥、boot/direct 启动、iOS 特化与测试 | `build-runtime.sh`、`patches/series`、`bridge/`、`ios/` | Android 产物在 `runtime/out/<abi>/`；iOS 构建输出不入库 |
+| `runtime/` | 本机引擎已移除（本 fork 只走远程 SSH / Relay）：仅剩 iOS、鸿蒙与 media | `ios/`、`ohos/`、`media/` | — |
 | `sdk/plugin-kit/` | 原生插件作者 SDK（schema、checker、视图解析 JS 孪生、技能） | `bin/check.mjs`、`schema/` | private 包，不发 npm |
 | `examples/plugins/` | 10 个插件示例 + e2e（只覆盖 weather/usage/quick） | 各 `package.json` `scripts.check` | |
 | `services/share-worker/` | Cloudflare Worker：分享链接、下载、市场/工坊、统计 | `src/index.ts` | sparse-checkout 外 |

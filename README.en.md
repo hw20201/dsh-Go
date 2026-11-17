@@ -267,18 +267,16 @@ source tooling/env.sh
 flutter --version
 java -version
 
-bash runtime/build-runtime.sh arm64-v8a
 DSH_BETA_TOKEN_FILE= bash tooling/build-apk.sh -f arm64 --keep-daemon
 ```
 
 The toolchain script downloads the SDK/NDK and emulator images and runs Android SDK license acceptance. Its default location is `~/dev`; set `DEV_ROOT` to use a separate directory. The script reuses existing installations, so check their versions before building.
 
-The output is `app/build/app/outputs/flutter-apk/app-arm64-release.apk`. Runtime assembly uses the versions and verification data pinned in the repository and needs network access to download dependencies. `DSH_BETA_TOKEN_FILE=` leaves out the maintainer's beta-channel token. `--keep-daemon` preserves Gradle daemons, which is useful when working on other Android projects at the same time.
+The output is `app/build/app/outputs/flutter-apk/app-arm64-release.apk`. `DSH_BETA_TOKEN_FILE=` leaves out the maintainer's beta-channel token. `--keep-daemon` preserves Gradle daemons, which is useful when working on other Android projects at the same time.
 
-For an x86_64 APK, generate its runtime first:
+For an x86_64 APK:
 
 ```bash
-bash runtime/build-runtime.sh x86_64
 DSH_BETA_TOKEN_FILE= bash tooling/build-apk.sh -f x64 --keep-daemon
 ```
 

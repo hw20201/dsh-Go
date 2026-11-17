@@ -291,7 +291,7 @@ void main() {
   });
 
   test('missing Android bridge never falls back to synchronous live-root writes', () async {
-    final h = Harness(bridgeOverride: RuntimeBridge(methods: const MethodChannel('missing-phase2-runtime')));
+    final h = Harness(bridgeOverride: RuntimeBridge());
     try {
       h.runtime.emit(RuntimePhase.running);
       await h.flush();
@@ -339,36 +339,6 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     } finally {
       h.close();
-    }
-  });
-
-  test('private MethodChannel preserves request identity and decodes current', () async {
-    const channel = MethodChannel('phase2-runtime-wire');
-    final calls = <MethodCall>[];
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
-      calls.add(call);
-      return call.method == 'installManagedSkill' ? {'result': 'installed', 'current': false, 'reason': 'stale'} : null;
-    });
-    try {
-      final bridge = RuntimeBridge(methods: channel);
-      final response = await bridge.installManagedSkill(
-        requestId: 'unique',
-        expectedRoot: '/fixture/root',
-        expectedToken: 'fixture-only',
-        expectedGeneration: 7,
-        name: uiSkillName,
-        files: bundle().files,
-      );
-      expect(response.result, 'installed');
-      expect(response.current, isFalse);
-      expect(response.reason, 'stale');
-      await bridge.cancelManagedSkill('unique');
-      expect(calls.map((c) => c.method), ['installManagedSkill', 'cancelManagedSkill']);
-      expect((calls.first.arguments as Map)['requestId'], 'unique');
-      expect((calls.first.arguments as Map)['expectedGeneration'], 7);
-      expect((calls.last.arguments as Map), {'requestId': 'unique'});
-    } finally {
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, null);
     }
   });
 

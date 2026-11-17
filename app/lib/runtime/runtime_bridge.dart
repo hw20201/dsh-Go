@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/services.dart';
+import 'package:flutter/services.dart' show MethodChannel, MissingPluginException;
 
 /// Lifecycle of the on-device Linux runtime and the local DSH server.
 enum RuntimePhase {
@@ -516,10 +516,6 @@ class RuntimeLogSnapshot {
   final int throughSeq;
 }
 
-List<RuntimeLogEntry> _logEntries(Object? raw) => [
-  for (final entry in raw as List) RuntimeLogEntry.fromMap(entry as Map<Object?, Object?>),
-];
-
 /// One-off message from the native side, e.g. "已用安全模式启动".
 class RuntimeNoticeEvent extends RuntimeEvent {
   const RuntimeNoticeEvent(this.text);
@@ -574,30 +570,18 @@ class ManagedSkillInstallResponse {
 }
 
 /// Dart side of the `dsh/runtime` platform channels implemented in Kotlin.
+///
+/// The on-device engine is gone: this fork is remote-only (SSH / relay), so
+/// there is no native side anymore. Every call answers as if the runtime were
+/// permanently not installed. The remote paths never touch this class.
 class RuntimeBridge {
-  RuntimeBridge({MethodChannel? methods, EventChannel? events})
-    : _methods = methods ?? const MethodChannel('dsh/runtime'),
-      _events = events ?? const EventChannel('dsh/runtime/events');
+  RuntimeBridge();
 
-  final MethodChannel _methods;
-  final EventChannel _events;
-  Stream<RuntimeEvent>? _stream;
+  Stream<RuntimeEvent> get events => const Stream<RuntimeEvent>.empty();
 
-  Stream<RuntimeEvent> get events => _stream ??= _events
-      .receiveBroadcastStream()
-      .map((raw) => _parse(raw as Map<Object?, Object?>))
-      .where((e) => e != null)
-      .cast<RuntimeEvent>();
+  Future<RuntimeStatus> status() async => throw MissingPluginException('dsh/runtime: no local runtime in this build');
 
-  Future<RuntimeStatus> status() async {
-    final map = await _methods.invokeMapMethod<Object?, Object?>('getStatus');
-    return map == null ? const RuntimeStatus.unknown() : RuntimeStatus.fromMap(map);
-  }
-
-  /// Serializes local bundled-skill IO with native rootfs activation/reset. A
-  /// retired request can have completed an earlier file commit: no rollback is
-  /// implied by [ManagedSkillInstallResponse.current] being false. Tokens stay
-  /// private to this channel and must never be logged.
+  /// No guest rootfs to install a bundled skill into.
   Future<ManagedSkillInstallResponse> installManagedSkill({
     required String requestId,
     required String expectedRoot,
@@ -605,209 +589,76 @@ class RuntimeBridge {
     required int? expectedGeneration,
     required String name,
     required Map<String, String> files,
-  }) async {
-    final map = await _methods.invokeMapMethod<Object?, Object?>('installManagedSkill', {
-      'requestId': requestId,
-      'expectedRoot': expectedRoot,
-      'expectedToken': expectedToken,
-      'expectedGeneration': expectedGeneration,
-      'name': name,
-      'files': files,
-    });
-    return ManagedSkillInstallResponse(
-      result: map?['result'] as String?,
-      current: map?['current'] == true,
-      reason: map?['reason'] as String?,
-    );
-  }
+  }) async => const ManagedSkillInstallResponse(reason: 'unavailable');
 
-  /// Exact cancellation; the worker retains its slot until physical IO exits.
-  Future<void> cancelManagedSkill(String requestId) =>
-      _methods.invokeMethod<void>('cancelManagedSkill', {'requestId': requestId});
+  Future<void> cancelManagedSkill(String requestId) async {}
 
-  /// [dropKept]: give up what a reset kept but cannot be put back.
-  Future<void> install({bool dropKept = false}) =>
-      _methods.invokeMethod<void>('install', dropKept ? const {'dropKept': true} : null);
+  Future<void> install({bool dropKept = false}) async {}
 
-  /// [phoneStorage] mounts the phone's shared storage at /sdcard (needs [requestStorage] first).
-  /// [mode] null keeps the current mode; [EngineMode.normal] while in safe mode starts the
-  /// two-minute trial back in normal mode. [visualReplies] writes the dsh-ui section
-  /// into the managed AGENTS.md.
   Future<void> start({
     Map<String, String> env = const {},
     bool phoneStorage = false,
     EngineMode? mode,
     bool visualReplies = true,
-  }) => _methods.invokeMethod<void>('start', {
-    'env': env,
-    'phoneStorage': phoneStorage,
-    'mode': mode?.name,
-    'visualReplies': visualReplies,
-  });
+  }) async {}
 
-  Future<LastKnownGood> lastKnownGood() async {
-    final map = await _methods.invokeMapMethod<Object?, Object?>('lastKnownGood');
-    return map == null ? const LastKnownGood.none() : LastKnownGood.fromMap(map);
-  }
+  Future<LastKnownGood> lastKnownGood() async => const LastKnownGood.none();
 
-  /// Puts the main profile's plugin list and settings layer back to the last good run's;
-  /// resolves with what changed. Needs the engine stopped (or in safe mode).
-  Future<LastKnownGood> restoreLastKnownGood() async {
-    final map = await _methods.invokeMapMethod<Object?, Object?>('restoreLastKnownGood');
-    return map == null ? const LastKnownGood.none() : LastKnownGood.fromMap({...map, 'available': true});
-  }
+  Future<LastKnownGood> restoreLastKnownGood() async => const LastKnownGood.none();
 
-  /// HarmonyOS: whether this build may schedule system reminders: `granted`,
-  /// `denied` or `unsupported`.
-  Future<String?> reminderAccess() => _methods.invokeMethod<String>('reminderAccess');
+  Future<String?> reminderAccess() async => null;
 
-  Future<List<SafeHazard>> safePreflight() async {
-    final list = await _methods.invokeListMethod<Object?>('safePreflight') ?? const [];
-    return [
-      for (final e in list)
-        if (e is Map) SafeHazard.fromMap(e.cast<Object?, Object?>()),
-    ];
-  }
+  Future<List<SafeHazard>> safePreflight() async => const [];
 
-  /// Renames the given preflight files to `<name>.off-<time>`; returns the new guest paths.
-  Future<List<String>> moveAside(List<String> paths) async {
-    final list = await _methods.invokeListMethod<Object?>('moveAside', {'paths': paths}) ?? const [];
-    return [
-      for (final e in list)
-        if (e is Map && e['to'] is String) e['to'] as String,
-    ];
-  }
+  Future<List<String>> moveAside(List<String> paths) async => const [];
 
-  Future<void> clearFailure() => _methods.invokeMethod<void>('clearFailure');
+  Future<void> clearFailure() async {}
 
-  Future<void> setAutoSafe(bool enabled) => _methods.invokeMethod<void>('setAutoSafe', {'enabled': enabled});
+  Future<void> setAutoSafe(bool enabled) async {}
 
-  /// Selects the local workspace index for subsequent starts. Native code
-  /// verifies the engine is stopped; this call does not start or stop it.
-  Future<void> setWorkspaceRecovery(bool enabled) =>
-      _methods.invokeMethod<void>('setWorkspaceRecovery', {'enabled': enabled});
+  Future<void> setWorkspaceRecovery(bool enabled) async {}
 
-  /// Takes effect on the next start; native code rejects changes while active.
-  Future<void> setDirectEngine(bool enabled) => _methods.invokeMethod<void>('setDirectEngine', {'enabled': enabled});
-  Future<void> setTawcEngine(bool enabled) => _methods.invokeMethod<void>('setTawcEngine', {'enabled': enabled});
+  Future<void> setDirectEngine(bool enabled) async {}
 
-  /// Output around the last failure, tokens masked.
-  Future<List<String>> failureLog() async => (await _methods.invokeListMethod<String>('failureLog')) ?? const [];
+  Future<void> setTawcEngine(bool enabled) async {}
 
-  Future<StorageAccess> storageStatus() async =>
-      StorageAccess.fromMap(await _methods.invokeMapMethod<Object?, Object?>('storageStatus') ?? const {});
+  Future<List<String>> failureLog() async => const [];
 
-  /// Shows the system storage permission prompt; resolves with the resulting access.
-  Future<StorageAccess> requestStorage() async =>
-      StorageAccess.fromMap(await _methods.invokeMapMethod<Object?, Object?>('requestStorage') ?? const {});
+  Future<StorageAccess> storageStatus() async => StorageAccess.fromMap(const {});
 
-  /// Opens Android's "All files access" page for this app (fallback when legacy access is off).
-  Future<bool> openAllFilesAccess() async => await _methods.invokeMethod<bool>('openAllFilesAccess') ?? false;
+  Future<StorageAccess> requestStorage() async => StorageAccess.fromMap(const {});
 
-  /// Whether Android leaves DSH out of battery optimization; null without the native side.
-  Future<bool?> batteryExempt() async {
-    try {
-      return await _methods.invokeMethod<bool>('batteryExempt');
-    } on MissingPluginException {
-      return null;
-    }
-  }
+  Future<bool> openAllFilesAccess() async => false;
 
-  /// Asks for the exemption (the system dialog, else the closest settings page); false if none opened.
-  Future<bool?> requestBatteryExempt() async {
-    try {
-      return await _methods.invokeMethod<bool>('requestBatteryExempt');
-    } on MissingPluginException {
-      return null;
-    }
-  }
+  Future<bool?> batteryExempt() async => null;
 
-  /// The phone maker (`vivo`, `xiaomi`, `huawei`, `honor`, `oppo`, `samsung`, null for the
-  /// rest) and the app's name as the system settings list it; null without the native side.
-  Future<BackgroundSettingsInfo?> backgroundSettings() async {
-    try {
-      final map = await _methods.invokeMapMethod<Object?, Object?>('backgroundSettings');
-      if (map == null) return null;
-      return BackgroundSettingsInfo(vendor: map['vendor'] as String?, label: map['label'] as String?);
-    } on MissingPluginException {
-      return null;
-    }
-  }
+  Future<bool?> requestBatteryExempt() async => null;
 
-  /// Opens the maker's background-running page, else the app's system details page:
-  /// `vendor`, `details`, or null when nothing opened.
-  Future<String?> openBackgroundSettings() async {
-    try {
-      return await _methods.invokeMethod<String>('openBackgroundSettings');
-    } on MissingPluginException {
-      return null;
-    }
-  }
+  Future<BackgroundSettingsInfo?> backgroundSettings() async => null;
 
-  /// Opens the maker's page for one of its own switches ([vendorSwitch]: `background`,
-  /// `autostart`, `popup`), else the app's system details page: `vendor`, `details`, or null
-  /// when nothing opened (also without the native side).
-  Future<String?> openVendorSettings(String vendorSwitch) async {
-    try {
-      return await _methods.invokeMethod<String>('openVendorSettings', {'switch': vendorSwitch});
-    } on MissingPluginException {
-      return null;
-    } on PlatformException {
-      return null;
-    }
-  }
+  Future<String?> openBackgroundSettings() async => null;
 
-  /// Whether the active network is metered (mobile data); null when unknown or without the
-  /// native side.
-  Future<bool?> networkMetered() async {
-    try {
-      return await _methods.invokeMethod<bool>('networkMetered');
-    } on MissingPluginException {
-      return null;
-    } on PlatformException {
-      return null;
-    }
-  }
+  Future<String?> openVendorSettings(String vendorSwitch) async => null;
 
-  Future<void> stop() => _methods.invokeMethod<void>('stop');
+  Future<bool?> networkMetered() async => null;
 
-  /// HarmonyOS: closes the app and opens it again, the only way to another engine start.
-  Future<void> reopenApp() => _methods.invokeMethod<void>('reopenApp');
+  Future<void> stop() async {}
+
+  Future<void> reopenApp() async {}
 
   /// iOS: whether a local turn is running, which is what asks the system to let it go on.
-  Future<void> setTurnRunning(bool running) => _methods.invokeMethod<void>('turnRunning', {'running': running});
+  /// This is a shell signal, not the engine: the native side (ios/Runner/ContinuedRun.swift)
+  /// still answers it, so the channel call stays. No plugin on Android: the caller swallows
+  /// the MissingPluginException.
+  Future<void> setTurnRunning(bool running) =>
+      const MethodChannel('dsh/runtime').invokeMethod<void>('turnRunning', {'running': running});
 
-  /// Deletes the runtime with everything in /root except [keep].
-  Future<void> reset({ResetKeep keep = const ResetKeep()}) => _methods.invokeMethod<void>('reset', {'keep': keep.wire});
+  Future<void> reset({ResetKeep keep = const ResetKeep()}) async {}
 
-  /// Explicit HarmonyOS reset intent. Existing uninstall calls keep the old wire.
-  Future<void> resetAndReinstall({ResetKeep keep = const ResetKeep()}) =>
-      _methods.invokeMethod<void>('reset', {'keep': keep.wire, 'reinstall': true});
+  Future<void> resetAndReinstall({ResetKeep keep = const ResetKeep()}) async {}
 
-  Future<List<String>> logs({int lines = 500}) async =>
-      (await _methods.invokeListMethod<String>('getLogs', {'lines': lines})) ?? const [];
+  Future<List<String>> logs({int lines = 500}) async => const [];
 
-  Future<RuntimeLogSnapshot> logSnapshot({int lines = 300}) async {
-    final raw = await _methods.invokeMapMethod<Object?, Object?>('getLogSnapshot', {'lines': lines});
-    return RuntimeLogSnapshot(_logEntries(raw!['entries']), raw['throughSeq'] as int);
-  }
-
-  static RuntimeEvent? _parse(Map<Object?, Object?> raw) {
-    switch (raw['type']) {
-      case 'status':
-        return RuntimeStatusEvent(RuntimeStatus.fromMap(raw['status'] as Map<Object?, Object?>));
-      case 'progress':
-        return RuntimeProgressEvent(
-          step: raw['step'] as String? ?? 'extract',
-          done: (raw['done'] as num?)?.toInt() ?? 0,
-          total: (raw['total'] as num?)?.toInt() ?? 0,
-        );
-      case 'logs':
-        return RuntimeLogsEvent(_logEntries(raw['entries']));
-      case 'notice':
-        final text = raw['text'] as String?;
-        return text == null || text.isEmpty ? null : RuntimeNoticeEvent(text);
-    }
-    return null;
-  }
+  Future<RuntimeLogSnapshot> logSnapshot({int lines = 300}) async =>
+      const RuntimeLogSnapshot([], 0);
 }

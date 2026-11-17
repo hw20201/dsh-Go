@@ -9,9 +9,7 @@ import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.github.ccch1mneyyy.dsh_app.voice.VoiceDiagnostics
-import io.github.ccch1mneyyy.dsh_app.runtime.RuntimeManifest
 import io.github.ccch1mneyyy.dsh_app.update.ApkInstaller
-import org.json.JSONObject
 import java.io.File
 import java.io.RandomAccessFile
 import kotlin.concurrent.thread
@@ -21,12 +19,11 @@ import kotlin.concurrent.thread
  *
  * - `info` → `{app: {versionName, versionCode, abi}, device: {manufacturer, brand, model,
  *   android, sdkInt, abis, memoryMb, freeStorageMb, display: {widthPx, heightPx, density,
- *   densityDpi, fontScale}}, manifest: {runtimeVersion, abi,
- *   dshVersion, nodeVersion, pnpmVersion, ubuntuVersion, prootVersion, rootfsBytes,
- *   uncompressedBytes, files}}` (the bundled runtime's `assets/runtime/manifest.json`).
+ *   densityDpi, fontScale}}, manifest: {}}` (no bundled runtime anymore: the manifest is
+ *   always empty).
  * - `engineLog {maxBytes}` → the last lines of the engine's log file (`dsh.log`, and the
- *   rotated `dsh.log.1` before it), which outlives the app process. Lines were already
- *   masked when written (`CrashClassifier.redact`); Dart masks them again.
+ *   rotated `dsh.log.1` before it), which outlives the app process. Lines are masked
+ *   again on the Dart side before anything leaves the phone.
  *
  * - `info.evidence` contains bounded persisted app errors/voice stages and this app's
  *   system exit metadata, with per-source availability. No exception bodies or exit traces.
@@ -127,8 +124,8 @@ class DiagnosticsPlugin : FlutterPlugin, io.flutter.embedding.engine.plugins.act
     }
 
     private fun manifest(): Map<String, Any?> {
-        val json = runCatching { RuntimeManifest.load(context).raw }.getOrNull() ?: return emptyMap()
-        return manifestSummary(json)
+        // No on-device engine anymore: there is no bundled runtime manifest.
+        return emptyMap()
     }
 
     private fun engineLog(maxBytes: Int): List<String> {
@@ -146,25 +143,6 @@ class DiagnosticsPlugin : FlutterPlugin, io.flutter.embedding.engine.plugins.act
         private const val MB = 1024L * 1024L
         private const val DEFAULT_LOG_BYTES = 512 * 1024
         private const val MAX_LOG_BYTES = 4 * 1024 * 1024
-
-        /** The manifest fields a bug report needs; checksums, notes and launch details left out. */
-        fun manifestSummary(json: JSONObject): Map<String, Any?> {
-            fun str(key: String) = json.optString(key).ifEmpty { null }
-            fun long(key: String) = json.optLong(key, -1L).takeIf { it >= 0 }
-            val entries = json.optJSONObject("entries")
-            return mapOf(
-                "runtimeVersion" to str("runtimeVersion"),
-                "abi" to str("abi"),
-                "dshVersion" to str("dshVersion"),
-                "nodeVersion" to str("nodeVersion"),
-                "pnpmVersion" to str("pnpmVersion"),
-                "ubuntuVersion" to str("ubuntuVersion"),
-                "prootVersion" to str("prootVersion"),
-                "rootfsBytes" to long("rootfsBytes"),
-                "uncompressedBytes" to long("uncompressedBytes"),
-                "files" to entries?.optLong("file", -1L)?.takeIf { it >= 0 },
-            ).filterValues { it != null }
-        }
 
         /** The last whole lines of [file] within [maxBytes]; empty when it is missing. */
         fun tail(file: File, maxBytes: Int): List<String> {
