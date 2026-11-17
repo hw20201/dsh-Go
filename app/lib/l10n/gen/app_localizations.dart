@@ -28406,6 +28406,18 @@ abstract class L10n {
   /// **'没能登录远端 DSH'**
   String get remoteErrDshSignIn;
 
+  /// No description provided for @remoteErrDirectTokenMissing.
+  ///
+  /// In zh, this message translates to:
+  /// **'还没有填写登录令牌'**
+  String get remoteErrDirectTokenMissing;
+
+  /// No description provided for @remoteErrDirectUnreachable.
+  ///
+  /// In zh, this message translates to:
+  /// **'直连服务器没有响应'**
+  String get remoteErrDirectUnreachable;
+
   /// No description provided for @remoteErrDshTunnel.
   ///
   /// In zh, this message translates to:
@@ -29503,6 +29515,90 @@ abstract class L10n {
   /// In zh, this message translates to:
   /// **'不经过第三方服务器'**
   String get remoteSshDirect;
+
+  /// No description provided for @remoteDirectHosts.
+  ///
+  /// In zh, this message translates to:
+  /// **'直连'**
+  String get remoteDirectHosts;
+
+  /// No description provided for @remoteDirectHostsIntro.
+  ///
+  /// In zh, this message translates to:
+  /// **'直接连服务器（和 DSH Mobile 一样），不用 SSH 也不走中继'**
+  String get remoteDirectHostsIntro;
+
+  /// No description provided for @remoteDirectAdd.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加直连主机'**
+  String get remoteDirectAdd;
+
+  /// No description provided for @remoteDirectEdit.
+  ///
+  /// In zh, this message translates to:
+  /// **'编辑直连主机'**
+  String get remoteDirectEdit;
+
+  /// No description provided for @remoteDirectName.
+  ///
+  /// In zh, this message translates to:
+  /// **'名称'**
+  String get remoteDirectName;
+
+  /// No description provided for @remoteDirectServerUrl.
+  ///
+  /// In zh, this message translates to:
+  /// **'服务器地址'**
+  String get remoteDirectServerUrl;
+
+  /// No description provided for @remoteDirectServerUrlHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'例如 https://example.com/dsh/'**
+  String get remoteDirectServerUrlHint;
+
+  /// No description provided for @remoteDirectToken.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录令牌'**
+  String get remoteDirectToken;
+
+  /// No description provided for @remoteDirectTokenHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'服务器启动时打印的 ?token='**
+  String get remoteDirectTokenHint;
+
+  /// No description provided for @remoteDirectBasicAuth.
+  ///
+  /// In zh, this message translates to:
+  /// **'HTTP Basic 认证（可选）'**
+  String get remoteDirectBasicAuth;
+
+  /// No description provided for @remoteDirectBasicAuthHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'服务器前面有 nginx 认证时填写'**
+  String get remoteDirectBasicAuthHint;
+
+  /// No description provided for @remoteDirectBasicAuthUser.
+  ///
+  /// In zh, this message translates to:
+  /// **'用户名'**
+  String get remoteDirectBasicAuthUser;
+
+  /// No description provided for @remoteDirectBasicAuthPassword.
+  ///
+  /// In zh, this message translates to:
+  /// **'密码'**
+  String get remoteDirectBasicAuthPassword;
+
+  /// No description provided for @remoteDirectBadUrl.
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入 http(s) 开头的服务器地址'**
+  String get remoteDirectBadUrl;
 
   /// No description provided for @remoteOtherMethods.
   ///
@@ -35941,6 +36037,18 @@ abstract class L10n {
   /// In zh, this message translates to:
   /// **'SSH 主机'**
   String get stateSshHost;
+
+  /// No description provided for @stateDirectHost.
+  ///
+  /// In zh, this message translates to:
+  /// **'直连主机'**
+  String get stateDirectHost;
+
+  /// No description provided for @stateDirect.
+  ///
+  /// In zh, this message translates to:
+  /// **'直连'**
+  String get stateDirect;
 
   /// No description provided for @stateHostBrowserFailed.
   ///

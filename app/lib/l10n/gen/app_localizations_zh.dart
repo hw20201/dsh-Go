@@ -15440,6 +15440,12 @@ class L10nZh extends L10n {
   String get remoteErrDshSignIn => '没能登录远端 DSH';
 
   @override
+  String get remoteErrDirectTokenMissing => '还没有填写登录令牌';
+
+  @override
+  String get remoteErrDirectUnreachable => '直连服务器没有响应';
+
+  @override
   String get remoteErrDshTunnel => '没能通过隧道连接 DSH';
 
   @override
@@ -16069,6 +16075,48 @@ class L10nZh extends L10n {
 
   @override
   String get remoteSshDirect => '不经过第三方服务器';
+
+  @override
+  String get remoteDirectHosts => '直连';
+
+  @override
+  String get remoteDirectHostsIntro => '直接连服务器（和 DSH Mobile 一样），不用 SSH 也不走中继';
+
+  @override
+  String get remoteDirectAdd => '添加直连主机';
+
+  @override
+  String get remoteDirectEdit => '编辑直连主机';
+
+  @override
+  String get remoteDirectName => '名称';
+
+  @override
+  String get remoteDirectServerUrl => '服务器地址';
+
+  @override
+  String get remoteDirectServerUrlHint => '例如 https://example.com/dsh/';
+
+  @override
+  String get remoteDirectToken => '登录令牌';
+
+  @override
+  String get remoteDirectTokenHint => '服务器启动时打印的 ?token=';
+
+  @override
+  String get remoteDirectBasicAuth => 'HTTP Basic 认证（可选）';
+
+  @override
+  String get remoteDirectBasicAuthHint => '服务器前面有 nginx 认证时填写';
+
+  @override
+  String get remoteDirectBasicAuthUser => '用户名';
+
+  @override
+  String get remoteDirectBasicAuthPassword => '密码';
+
+  @override
+  String get remoteDirectBadUrl => '请输入 http(s) 开头的服务器地址';
 
   @override
   String get remoteOtherMethods => '其他方式';
@@ -19505,6 +19553,12 @@ class L10nZh extends L10n {
 
   @override
   String get stateSshHost => 'SSH 主机';
+
+  @override
+  String get stateDirectHost => '直连主机';
+
+  @override
+  String get stateDirect => '直连';
 
   @override
   String get stateHostBrowserFailed => '没能打开浏览器，可以复制登录链接到浏览器里完成。';

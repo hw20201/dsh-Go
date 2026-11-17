@@ -16226,6 +16226,12 @@ class L10nEn extends L10n {
   String get remoteErrDshSignIn => 'Couldn’t sign in to remote DSH';
 
   @override
+  String get remoteErrDirectTokenMissing => 'Enter the login token first';
+
+  @override
+  String get remoteErrDirectUnreachable => 'Can’t reach the direct server';
+
+  @override
   String get remoteErrDshTunnel => 'Couldn’t connect to DSH through the tunnel';
 
   @override
@@ -16887,6 +16893,48 @@ class L10nEn extends L10n {
 
   @override
   String get remoteSshDirect => 'No third-party server';
+
+  @override
+  String get remoteDirectHosts => 'Direct';
+
+  @override
+  String get remoteDirectHostsIntro => 'Connect straight to the server (like DSH Mobile), no SSH and no relay';
+
+  @override
+  String get remoteDirectAdd => 'Add a direct host';
+
+  @override
+  String get remoteDirectEdit => 'Edit direct host';
+
+  @override
+  String get remoteDirectName => 'Name';
+
+  @override
+  String get remoteDirectServerUrl => 'Server address';
+
+  @override
+  String get remoteDirectServerUrlHint => 'e.g. https://example.com/dsh/';
+
+  @override
+  String get remoteDirectToken => 'Login token';
+
+  @override
+  String get remoteDirectTokenHint => 'The ?token= the server prints on start';
+
+  @override
+  String get remoteDirectBasicAuth => 'HTTP Basic Auth (optional)';
+
+  @override
+  String get remoteDirectBasicAuthHint => 'Fill in when the server sits behind nginx auth';
+
+  @override
+  String get remoteDirectBasicAuthUser => 'Username';
+
+  @override
+  String get remoteDirectBasicAuthPassword => 'Password';
+
+  @override
+  String get remoteDirectBadUrl => 'Enter a server address starting with http(s)';
 
   @override
   String get remoteOtherMethods => 'Other methods';
@@ -20558,6 +20606,12 @@ class L10nEn extends L10n {
 
   @override
   String get stateSshHost => 'SSH host';
+
+  @override
+  String get stateDirectHost => 'Direct host';
+
+  @override
+  String get stateDirect => 'Direct';
 
   @override
   String get stateHostBrowserFailed => 'Couldn’t open the browser. Copy the sign-in link and open it in a browser.';

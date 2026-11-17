@@ -4917,6 +4917,7 @@
   "remoteDirectBasicAuthHint": "Fill in when the server sits behind nginx auth",
   "remoteDirectBasicAuthUser": "Username",
   "remoteDirectBasicAuthPassword": "Password",
+  "remoteDirectBadUrl": "Enter a server address starting with http(s)",
   "remoteOtherMethods": "Other methods",
   "remoteWebConsole": "Web remote console",
   "remoteWebConsoleProvider": "dsh.r2049.cn · Third-party page",

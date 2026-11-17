@@ -9612,6 +9612,7 @@
   "remoteDirectBasicAuthHint": "服务器前面有 nginx 认证时填写",
   "remoteDirectBasicAuthUser": "用户名",
   "remoteDirectBasicAuthPassword": "密码",
+  "remoteDirectBadUrl": "请输入 http(s) 开头的服务器地址",
   "remoteOtherMethods": "其他方式",
   "remoteWebConsole": "网页版远程控制台",
   "remoteWebConsoleProvider": "dsh.r2049.cn · 第三方页面",
