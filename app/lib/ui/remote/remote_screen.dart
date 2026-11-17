@@ -6,8 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/l10n.dart';
 import '../../remote/relay/relay_backend.dart';
-import '../../runtime/local_footprint.dart';
-import '../../runtime/runtime_state.dart';
 import '../../state/app_info.dart';
 import '../../state/connection_state.dart';
 import '../../state/hosts_state.dart';
@@ -20,6 +18,7 @@ import '../shell/page_frame.dart';
 import '../theme/app_icons.dart';
 import '../theme/theme.dart';
 import '../web/web_view_page.dart';
+import 'direct_host_form.dart';
 import 'host_key_dialog.dart';
 import 'host_status.dart';
 import 'link_progress.dart';
@@ -31,11 +30,12 @@ import 'ssh_host_form.dart';
 
 /// 远程主机 (a list page): the computers and servers this phone can drive.
 ///
-/// Two ways in, side by side: a DSH Remote account (李国宝's ds-harness-remote,
-/// end-to-end encrypted relay, no network setup) and SSH hosts (self-contained:
-/// dsh-app starts `dsh web` over SSH and tunnels to it). Picking a host makes
-/// it the active one; the chat and the session list follow. The old Remote
-/// Web console stays as a small fallback at the bottom.
+/// Three ways in, side by side: a direct server address (plain HTTP/WebSocket
+/// to the server, the way DSH Mobile connects), a DSH Remote account (李国宝's
+/// ds-harness-remote, end-to-end encrypted relay, no network setup) and SSH
+/// hosts (self-contained: dsh-app starts `dsh web` over SSH and tunnels to
+/// it). Picking a host makes it the active one; the chat and the session list
+/// follow. Each way folds away (收纳）; the rarely used bits sit in 其他.
 class RemoteScreen extends ConsumerWidget {
   const RemoteScreen({super.key});
 
@@ -74,20 +74,27 @@ class RemoteScreen extends ConsumerWidget {
     if (ok && navigator.mounted) navigator.maybePop();
   }
 
-  /// A host added while this phone has nothing to run on (no runtime, first
-  /// run) is the one to use: take it at once instead of a second tap.
+  /// A host added while nothing is active yet is the one to use: take it at
+  /// once instead of a second tap.
   Future<void> _addSsh(BuildContext context, WidgetRef ref) async {
     final saved = await Navigator.of(context)
         .push<SshHostConfig>(MaterialPageRoute(builder: (_) => const SshHostFormPage()));
     if (saved == null || !context.mounted) return;
-    final nothingHere = ref.read(localRuntimeProvider).status.runtimeMissing;
-    if (nothingHere && ref.read(activeHostProvider).isLocal) await _use(context, ref, HostRef.ssh(saved.id));
+    if (ref.read(activeHostProvider).isLocal) await _use(context, ref, HostRef.ssh(saved.id));
+  }
+
+  Future<void> _addDirect(BuildContext context, WidgetRef ref) async {
+    final saved = await Navigator.of(context)
+        .push<DirectHostConfig>(MaterialPageRoute(builder: (_) => const DirectHostFormPage()));
+    if (saved == null || !context.mounted) return;
+    if (ref.read(activeHostProvider).isLocal) await _use(context, ref, HostRef.direct(saved.id));
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final ssh = ref.watch(hostsProvider.select((s) => s.ssh));
+    final direct = ref.watch(hostsProvider.select((s) => s.direct));
     final active = ref.watch(activeHostProvider);
     final signedIn = ref.watch(relayAccountProvider.select((a) => a.value?.signedIn ?? false));
     void push(Widget page) => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page));
@@ -97,22 +104,31 @@ class RemoteScreen extends ConsumerWidget {
       actions: const [AskAiButton(AskAiTopic.remote)],
       children: [
         _ActiveCard(active: active),
-        _RelaySection(onUse: (h) => _use(context, ref, h)),
         SettingsSection(
-          title: l10n.remoteTransferSettings,
+          title: l10n.remoteDirectHosts,
+          footer: Text(l10n.remoteDirectHostsIntro),
+          collapsible: true,
           children: [
-            SettingsSwitchTile(
-              key: const ValueKey('remote-compact-history'),
-              spot: Spots.remoteCompactHistory,
-              subtitle: l10n.remoteCompactHistoryHint,
-              value: ref.watch(remoteCompactHistoryProvider),
-              onChanged: (value) => unawaited(ref.read(remoteCompactHistoryProvider.notifier).set(value)),
+            for (final h in direct)
+              _DirectRow(
+                config: h,
+                active: active == HostRef.direct(h.id),
+                onTap: () => _use(context, ref, HostRef.direct(h.id)),
+                onEdit: () => push(DirectHostFormPage(existing: h)),
+              ),
+            SettingsTile(
+              icon: AppIcons.add,
+              tinted: false,
+              subtitle: direct.isEmpty ? l10n.remoteDirectHostsIntro : null,
+              onTap: () => unawaited(_addDirect(context, ref)),
             ),
           ],
         ),
+        _RelaySection(onUse: (h) => _use(context, ref, h)),
         SettingsSection(
           title: l10n.remoteSshHosts,
           footer: Text(l10n.remoteSshRequirements),
+          collapsible: true,
           children: [
             for (final h in ssh)
               _SshRow(
@@ -132,7 +148,25 @@ class RemoteScreen extends ConsumerWidget {
         ),
         SettingsSection(
           title: l10n.remoteOtherMethods,
+          collapsible: true,
+          initiallyExpanded: false,
           children: [
+            SettingsSwitchTile(
+              key: const ValueKey('remote-compact-history'),
+              spot: Spots.remoteCompactHistory,
+              subtitle: l10n.remoteCompactHistoryHint,
+              value: ref.watch(remoteCompactHistoryProvider),
+              onChanged: (value) => unawaited(ref.read(remoteCompactHistoryProvider.notifier).set(value)),
+            ),
+            // Only meaningful once there is a host to come back to.
+            if (ssh.isNotEmpty || direct.isNotEmpty || signedIn)
+              SettingsSwitchTile(
+                key: const ValueKey('remote-auto-connect'),
+                spot: Spots.remoteAutoConnect,
+                subtitle: l10n.remoteAutoConnectOnStartupHint,
+                value: ref.watch(remoteAutoConnectProvider),
+                onChanged: (value) => unawaited(ref.read(remoteAutoConnectProvider.notifier).set(value)),
+              ),
             SettingsTile(
               icon: AppIcons.webConsole,
               tinted: false,
@@ -142,20 +176,6 @@ class RemoteScreen extends ConsumerWidget {
             ),
           ],
         ),
-        // Only meaningful once there is a host to come back to.
-        if (ssh.isNotEmpty || signedIn)
-          SettingsSection(
-            title: l10n.remoteStartupSection,
-            children: [
-              SettingsSwitchTile(
-                key: const ValueKey('remote-auto-connect'),
-                spot: Spots.remoteAutoConnect,
-                subtitle: l10n.remoteAutoConnectOnStartupHint,
-                value: ref.watch(remoteAutoConnectProvider),
-                onChanged: (value) => unawaited(ref.read(remoteAutoConnectProvider.notifier).set(value)),
-              ),
-            ],
-          ),
       ],
     );
   }
@@ -186,8 +206,6 @@ class _ActiveCard extends ConsumerWidget {
         (error?.kind == HostLinkErrorKind.hostKeyMismatch || error?.kind == HostLinkErrorKind.hostKeyUnverified);
     void reconnect() => ref.read(remoteConnectionProvider(active).notifier).retry();
     final failed = status.phase == HostLinkPhase.failed && error != null;
-    // No runtime on this phone: 本机 is nowhere to go back to.
-    final canGoLocal = ref.watch(localRuntimeProvider.select((s) => !s.status.runtimeMissing));
     return OverviewCard(
       leading: OverviewGlyph(hostKindIcon(active.kind), tint: hostKindTint(active.kind)),
       title: Text(l10n.remoteActiveHost(name)),
@@ -209,12 +227,7 @@ class _ActiveCard extends ConsumerWidget {
           ],
         ),
       ),
-      trailing: canGoLocal
-          ? _EdgeTextButton(
-              label: l10n.remoteSwitchToPhone,
-              onPressed: () => ref.read(activeHostProvider.notifier).select(HostRef.local),
-            )
-          : null,
+      trailing: null,
       footer: failed
           ? Padding(
               padding: const EdgeInsets.only(left: OverviewCard.inset, right: OverviewCard.inset - 12),
@@ -355,6 +368,38 @@ class _EdgeIconButton extends StatelessWidget {
   }
 }
 
+class _DirectRow extends ConsumerWidget {
+  const _DirectRow({required this.config, required this.active, required this.onTap, required this.onEdit});
+
+  final DirectHostConfig config;
+  final bool active;
+  final VoidCallback onTap;
+  final VoidCallback onEdit;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final view = active ? watchHostStatus(ref, HostRef.direct(config.id)) : null;
+    return Semantics(
+      selected: active,
+      inMutuallyExclusiveGroup: true,
+      child: SettingsTile(
+        icon: hostKindIcon(HostKind.direct),
+        tinted: false,
+        title: config.name,
+        subtitle: config.baseUri,
+        onTap: onTap,
+        value: view == null ? null : _HostState(view),
+        trailing: _EdgeIconButton(
+          icon: const Icon(AppIcons.configure, size: 20),
+          tooltip: l10n.commonEdit,
+          onPressed: onEdit,
+        ),
+      ),
+    );
+  }
+}
+
 class _SshRow extends ConsumerWidget {
   const _SshRow({required this.config, required this.active, required this.onTap, required this.onEdit});
 
@@ -408,6 +453,7 @@ class _RelaySection extends ConsumerWidget {
       final server = account.server;
       return SettingsSection(
         title: 'DSH Remote',
+        collapsible: true,
         // The credit's link takes taps in the margin below it, so it carries it.
         margin: available ? RelayCredit.sectionMargin : kSettingsGroupMargin,
         footer: available
@@ -418,6 +464,7 @@ class _RelaySection extends ConsumerWidget {
     }
     return SettingsSection(
       title: 'DSH Remote',
+      collapsible: true,
       footer: account.hostsFailed && account.hosts.isNotEmpty
           ? Text(l10n.remoteErrRefreshHosts, style: TextStyle(color: DshColors.of(context).danger))
           : account.hosts.length > 1

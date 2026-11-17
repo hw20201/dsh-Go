@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/l10n.dart';
-import '../../runtime/local_footprint.dart';
 import '../../runtime/runtime_state.dart';
 import '../../state/account_state.dart';
 import '../../state/android_features.dart';
@@ -14,11 +13,9 @@ import '../../state/connection_state.dart';
 import '../../state/engine_settings_state.dart';
 import '../../state/features_state.dart';
 import '../../state/hosts_state.dart';
-import '../../state/phone_state.dart';
 import '../../state/plugins_state.dart';
 import '../../state/sessions_state.dart';
 import '../../state/settings_state.dart';
-import '../../state/system_actions_state.dart';
 import '../../state/ui_mode_state.dart';
 import '../../state/update_state.dart';
 import '../account/account_page.dart';
@@ -27,9 +24,6 @@ import '../chat/balance_widgets.dart' show formatMoney;
 import '../common/ask_ai.dart';
 import '../common/overview_card.dart';
 import '../common/search_capsule.dart';
-import '../common/status_chip.dart';
-import '../engine/engine_screen.dart';
-import '../engine/engine_status.dart';
 import '../engine_settings/engine_settings_hub.dart';
 import '../engine_settings/web_search_page.dart';
 import 'media_settings_page.dart';
@@ -38,8 +32,6 @@ import '../features/feature_format.dart' show permissionName;
 import '../features/permission_page.dart';
 import '../onboarding/api_key_page.dart' show maskApiKey;
 import '../pets/pet_settings_page.dart';
-import '../phone/phone_control_screen.dart';
-import '../phone/system_actions_page.dart';
 import '../plugins/plugins_screen.dart';
 import '../plugins/seats/plugin_settings_tiles.dart';
 import '../plugins/seats/seat_probe.dart';
@@ -92,12 +84,9 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final settings = ref.watch(settingsProvider);
-    final runtime = ref.watch(localRuntimeProvider);
-    final engine = EngineStatusView.of(runtime);
     final colors = DshColors.of(context);
     final notifier = ref.read(settingsProvider.notifier);
     final android = ref.watch(androidSystemFeaturesProvider);
-    final ios = ref.watch(operatingSystemProvider) == 'ios';
     final uiMode = ref.watch(uiModeProvider.select((s) => s.mode));
     final host = ref.watch(activeHostProvider);
     Widget? text(String? value, {Color? color}) =>
@@ -109,14 +98,6 @@ class SettingsScreen extends ConsumerWidget {
         ? (replyPrefsSummary(ref) == null ? l10n.commonNotSet : l10n.hubValueSet)
         : null;
     // 能力.
-    final phone = android || ios ? ref.watch(phoneProvider) : null;
-    final phoneValue = phone == null || !phone.loaded || !phone.status.ready
-        ? null
-        : !phone.status.enabled
-        ? l10n.hubValueOff
-        : (ios ? phone.status.bridgeListening : phone.status.a11y.ok)
-        ? l10n.pluginsTurnedOn
-        : l10n.hubValueOneStep;
     final plugins = ref.watch(installedPluginsProvider.select((s) => s.value?.length));
     // Read only once the host's settings are at hand: the hub asks for nothing.
     final search = ref.exists(engineSettingsProvider) ? ref.watch(engineSettingsProvider).value : null;
@@ -126,7 +107,7 @@ class SettingsScreen extends ConsumerWidget {
     // 通用. HarmonyOS has no battery exemption to report.
     final exempt = android ? ref.watch(batteryExemptProvider).value : null;
     // 主机.
-    final ssh = ref.watch(hostsProvider.select((s) => s.ssh.length));
+    final savedHosts = ref.watch(hostsProvider.select((s) => s.ssh.length + s.direct.length));
     final hostName = host.isLocal ? l10n.commonThisPhone : ref.watch(hostNameProvider(host)) ?? l10n.commonRemoteHost;
     // 帮助与关于.
     final update = ref.watch(appUpdateProvider);
@@ -172,24 +153,6 @@ class SettingsScreen extends ConsumerWidget {
         SettingsSection(
           title: l10n.hubGroupCapabilities,
           children: [
-            if (android || ios)
-              SettingsTile(
-                icon: AppIcons.phoneControl,
-                tint: SettingsHues.abilities,
-                spot: SettingsIndex.entry(SettingsPageId.phone),
-                value: text(phoneValue, color: phoneValue == l10n.hubValueOneStep ? colors.warning : null),
-                onTap: () => _push(context, const PhoneControlScreen()),
-              )
-            else
-              SettingsTile(
-                icon: AppIcons.phoneControl,
-                tint: SettingsHues.abilities,
-                spot: SettingsIndex.entry(SettingsPageId.systemActions),
-                value: text(
-                  ref.watch(systemActionsProvider.select((s) => s.enabled)) ? l10n.pluginsTurnedOn : l10n.hubValueOff,
-                ),
-                onTap: () => _push(context, const SystemActionsPage()),
-              ),
             SettingsTile(
               icon: AppIcons.webSearch,
               tint: SettingsHues.abilities,
@@ -284,17 +247,10 @@ class SettingsScreen extends ConsumerWidget {
           title: l10n.hubGroupHosts,
           children: [
             SettingsTile(
-              icon: AppIcons.engine,
-              tint: SettingsHues.hosts,
-              spot: SettingsIndex.entry(SettingsPageId.engine),
-              value: StatusChip(tone: engine.tone, label: engine.label),
-              onTap: () => _push(context, const EngineScreen()),
-            ),
-            SettingsTile(
               icon: AppIcons.remoteHosts,
               tint: SettingsHues.hosts,
               spot: SettingsIndex.entry(SettingsPageId.remote),
-              value: ssh == 0 ? null : Text(l10n.hubValueHosts(ssh)),
+              value: savedHosts == 0 ? null : Text(l10n.hubValueHosts(savedHosts)),
               onTap: () => _push(context, const RemoteScreen()),
             ),
             SettingsTile(
@@ -407,7 +363,6 @@ class _SettingsOverviewState extends ConsumerState<SettingsOverview> {
     final balance = ref.watch(balanceProvider);
     final wallets = ref.watch(accountWalletBalanceProvider);
     final runtime = ref.watch(localRuntimeProvider);
-    final engine = EngineStatusView.of(runtime);
     final colors = DshColors.of(context);
     final active = ref.watch(activeHostProvider);
     final remoteOnly = runtime.status.runtimeMissing && !active.isLocal;
@@ -464,7 +419,6 @@ class _SettingsOverviewState extends ConsumerState<SettingsOverview> {
         title = l10n.hubSettingsSignInAccount;
         subtitle = l10n.hubSettingsOrApiKey;
     }
-    final dsh = runtime.status.dshVersion;
     // The card is 账号's way in (its title is whoever is signed in).
     return SpotAnchor(
       spot: SettingsIndex.entry(SettingsPageId.account),
@@ -483,11 +437,6 @@ class _SettingsOverviewState extends ConsumerState<SettingsOverview> {
             ? l10n.hubSettingsHostSemantics(title, hostLink)
             : l10n.hubSettingsAccountSemantics(title, subtitle),
         onTap: () => _push(hostLink != null ? const RemoteScreen() : const AccountPage()),
-        footer: OverviewFooter(
-          tone: engine.tone,
-          text: [l10n.hubSettingsEngine, engine.label, if (dsh != null) 'DSH $dsh'].join(' · '),
-        ),
-        onFooterTap: () => _push(const EngineScreen()),
       ),
     );
   }

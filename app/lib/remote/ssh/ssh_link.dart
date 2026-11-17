@@ -32,7 +32,9 @@ typedef DshClientConnector = Future<DshClient> Function({
 });
 
 Future<DshClient> _defaultConnector({required Uri baseUri, required String token, required String hostHeader}) =>
-    DshClient.connect(baseUri: baseUri, token: token, hostHeader: hostHeader);
+    // Lists parse on a worker: a reconnect after the app comes back does not
+    // parse JSON on the UI thread (the screen-switch lag).
+    DshClient.connect(baseUri: baseUri, token: token, hostHeader: hostHeader, backgroundLists: true);
 
 /// Trust-on-first-use check against the pinned fingerprint.
 enum HostKeyVerdict { trusted, unknown, mismatch }

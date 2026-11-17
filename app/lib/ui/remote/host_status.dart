@@ -45,6 +45,7 @@ HostStatusView watchHostStatus(WidgetRef ref, HostRef host) {
 IconData hostKindIcon(HostKind kind) => switch (kind) {
   HostKind.local => AppIcons.thisPhone,
   HostKind.ssh => AppIcons.sshHost,
+  HostKind.direct => AppIcons.link,
   HostKind.relay => AppIcons.computer,
 };
 
@@ -52,5 +53,6 @@ IconData hostKindIcon(HostKind kind) => switch (kind) {
 int hostKindTint(HostKind kind) => switch (kind) {
   HostKind.local => 0,
   HostKind.ssh => 6,
+  HostKind.direct => 3,
   HostKind.relay => 1,
 };

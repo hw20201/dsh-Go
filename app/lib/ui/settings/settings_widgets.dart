@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import '../common/app_sheet.dart';
 import '../common/list_page_row.dart' show ListPageRow;
 import '../common/overview_card.dart' show OverviewChevron;
+import '../common/row_marks.dart' show RowExpandArrow;
 import '../common/segmented_pill.dart';
 
 export '../common/segmented_pill.dart' show PillSegment, SegmentedPill;
@@ -318,7 +319,10 @@ class InfoRow extends StatelessWidget {
 /// one-line footnote under it (title → card 8, card → footnote 8, groups 24
 /// apart). Titles and footnotes start 24 from the
 /// screen edge, under the page's large title.
-class SettingsSection extends StatelessWidget {
+/// A titled card of settings rows. With [collapsible], the title row folds
+/// the card away (收纳）: the state lives in the widget, so it holds while
+/// the page is open and resets when the page is left.
+class SettingsSection extends StatefulWidget {
   const SettingsSection({
     super.key,
     this.title,
@@ -326,6 +330,8 @@ class SettingsSection extends StatelessWidget {
     this.footer,
     this.margin = kSettingsGroupMargin,
     this.spot,
+    this.collapsible = false,
+    this.initiallyExpanded = true,
   });
 
   final String? title;
@@ -339,6 +345,12 @@ class SettingsSection extends StatelessWidget {
   final Widget? footer;
   final EdgeInsetsGeometry margin;
 
+  /// Tap the title to fold the card away (收纳）.
+  final bool collapsible;
+
+  /// Whether the card starts open (only when [collapsible]).
+  final bool initiallyExpanded;
+
   /// Style of section titles, for places that draw one without a card.
   static TextStyle? titleStyle(BuildContext context) => groupTitleStyle(context);
 
@@ -346,34 +358,58 @@ class SettingsSection extends StatelessWidget {
   static const footerGap = 8.0;
 
   @override
+  State<SettingsSection> createState() => _SettingsSectionState();
+}
+
+class _SettingsSectionState extends State<SettingsSection> {
+  late bool _expanded = widget.initiallyExpanded;
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final title = widget.title;
+    final expanded = !widget.collapsible || _expanded;
     return Padding(
-      padding: margin,
+      padding: widget.margin,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (title case final title?)
+          if (title != null)
             Padding(
               padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-              child: Semantics(header: true, child: Text(title, style: titleStyle(context))),
+              child: Semantics(
+                header: true,
+                child: widget.collapsible
+                    ? InkWell(
+                        onTap: () => setState(() => _expanded = !_expanded),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Row(
+                          children: [
+                            Expanded(child: Text(title, style: SettingsSection.titleStyle(context))),
+                            RowExpandArrow(open: _expanded),
+                          ],
+                        ),
+                      )
+                    : Text(title, style: SettingsSection.titleStyle(context)),
+              ),
             ),
-          SheetGroup(
-            margin: EdgeInsets.zero,
-            children: spot == null
-                ? children
-                : [
-                    // One child keeps SheetGroup's 2dp between rows inside it.
-                    SpotAnchor(
-                      spot: spot!,
-                      child: Column(mainAxisSize: MainAxisSize.min, spacing: 2, children: children),
-                    ),
-                  ],
-          ),
-          if (footer case final footer?)
+          if (expanded)
+            SheetGroup(
+              margin: EdgeInsets.zero,
+              children: widget.spot == null
+                  ? widget.children
+                  : [
+                      // One child keeps SheetGroup's 2dp between rows inside it.
+                      SpotAnchor(
+                        spot: widget.spot!,
+                        child: Column(mainAxisSize: MainAxisSize.min, spacing: 2, children: widget.children),
+                      ),
+                    ],
+            ),
+          if (expanded && widget.footer case final footer?)
             Padding(
-              padding: const EdgeInsets.fromLTRB(8, footerGap, 8, 0),
+              padding: const EdgeInsets.fromLTRB(8, SettingsSection.footerGap, 8, 0),
               child: DefaultTextStyle.merge(
                 style: theme.textTheme.bodySmall?.copyWith(color: DshColors.of(context).textTertiary, height: 1.55),
                 child: footer,

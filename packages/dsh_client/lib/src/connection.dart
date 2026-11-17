@@ -193,11 +193,16 @@ enum DshHealth {
 /// class never adds one. Use [hostHeader] when the socket goes through a
 /// tunnel whose public name the Host does not trust: the Host only checks the
 /// header, so a tunnel that preserves it can present `127.0.0.1:<port>`.
+/// HTTP Basic Auth credential (for example an nginx `auth_basic` user): sent
+/// as `Authorization: Basic base64(user:pass)` on every request.
+typedef DshBasicAuth = ({String username, String password});
+
 class DshConnection {
   DshConnection(
     Uri baseUri, {
     this.hostHeader,
     this.cookie,
+    this.basicAuth,
     HttpClient? httpClient,
     this.connectTimeout = const Duration(seconds: 10),
     this.requestTimeout = const Duration(seconds: 120),
@@ -220,6 +225,15 @@ class DshConnection {
 
   /// Overrides the `Host` header (`host:port`); defaults to [baseUri]'s authority.
   final String? hostHeader;
+
+  /// HTTP Basic Auth credential, if the server sits behind one.
+  final DshBasicAuth? basicAuth;
+
+  /// The `Authorization` header value for [basicAuth], if any.
+  String? get authorizationHeader => basicAuth == null
+      ? null
+      : 'Basic ${base64Encode(utf8.encode('${basicAuth!.username}:${basicAuth!.password}'))}';
+
   final Duration connectTimeout;
   final Duration requestTimeout;
   DshTracer? _tracer;
@@ -258,6 +272,7 @@ class DshConnection {
         requestTimeout: requestTimeout,
         hostHeader: hostHeader,
         cookieHeader: cookie?.header,
+        authorizationHeader: authorizationHeader,
         credentialRefs: List.unmodifiable(credentialRefs),
       ),
     );
@@ -487,6 +502,7 @@ class DshConnection {
       req.persistentConnection = false;
       _applyHost(req.headers);
       if (cookie != null) req.headers.set(HttpHeaders.cookieHeader, cookie!.header);
+      if (authorizationHeader case final auth?) req.headers.set(HttpHeaders.authorizationHeader, auth);
       final response = await req.close();
       if (response.statusCode >= 300 && response.statusCode < 400) {
         throw DshHttpException(response.statusCode, 'GET ${uri.path}: redirects are not followed');
@@ -528,7 +544,11 @@ class DshConnection {
   /// A missing/expired cookie fails the upgrade with HTTP 401 and a fence
   /// failure with 403; both surface as [DshHttpException].
   Future<WebSocket> connectWebSocket(String path, {Duration? timeout}) async {
-    final headers = <String, Object>{if (cookie != null) 'Cookie': cookie!.header, 'Host': ?hostHeader};
+    final headers = <String, Object>{
+      if (cookie != null) 'Cookie': cookie!.header,
+      'Host': ?hostHeader,
+      'Authorization': ?authorizationHeader,
+    };
     final uri = webSocketUri(path);
     var abandoned = false;
     try {
@@ -626,6 +646,7 @@ class DshConnection {
       req.followRedirects = followRedirects;
       _applyHost(req.headers);
       if (cookie != null) req.headers.set(HttpHeaders.cookieHeader, cookie!.header);
+      if (authorizationHeader case final auth?) req.headers.set(HttpHeaders.authorizationHeader, auth);
       if (contentType != null) req.headers.set(HttpHeaders.contentTypeHeader, contentType);
       headers?.forEach(req.headers.set);
       if (body != null) {

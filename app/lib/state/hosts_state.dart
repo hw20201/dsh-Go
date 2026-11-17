@@ -14,6 +14,7 @@ import 'app_info.dart';
 import '../remote/relay/relay_backend.dart';
 import '../remote/relay/webrtc_peer.dart';
 import '../remote/secret_store.dart';
+import '../remote/direct/direct_host_config.dart';
 import '../remote/ssh/ssh_host_config.dart';
 import '../remote/ssh/ssh_transport.dart';
 import 'sessions_state.dart';
@@ -22,10 +23,11 @@ import 'read_list_epoch.dart';
 export '../remote/link_status.dart' show HostLinkStatus, HostLinkPhase, HostLinkStep, HostLinkError, HostLinkErrorKind;
 export '../remote/ssh/ssh_transport.dart' show PresentedHostKey;
 export '../remote/relay/relay_backend.dart' show RelayHost, RelayTrust, RelayUser;
+export '../remote/direct/direct_host_config.dart';
 export '../remote/ssh/ssh_host_config.dart';
 
-/// The three kinds of DSH host the app can talk to.
-enum HostKind { local, ssh, relay }
+/// The four kinds of DSH host the app can talk to.
+enum HostKind { local, ssh, relay, direct }
 
 /// Identifies a host: the on-device engine, a saved SSH host, or a relay
 /// (ds-harness-remote) device. Equality is by kind + id; [name] is only a
@@ -38,6 +40,8 @@ class HostRef {
   const HostRef.ssh(String id) : this._(HostKind.ssh, id);
 
   const HostRef.relay(String id, {String? name}) : this._(HostKind.relay, id, name);
+
+  const HostRef.direct(String id) : this._(HostKind.direct, id);
 
   final HostKind kind;
   final String id;
@@ -58,6 +62,7 @@ class HostRef {
       return switch (map['kind']) {
         'ssh' => HostRef.ssh(id),
         'relay' => HostRef.relay(id, name: name is String ? name : null),
+        'direct' => HostRef.direct(id),
         _ => local,
       };
     } catch (_) {
@@ -80,6 +85,7 @@ String hostLabel(HostKind kind, String? name) => switch (kind) {
   HostKind.local => appL10n.commonThisPhone,
   HostKind.ssh => '${_short(name ?? appL10n.stateSshHost)} · SSH',
   HostKind.relay => appL10n.stateHostRemoteLabel(_short(name ?? appL10n.commonRemoteHost)),
+  HostKind.direct => '${_short(name ?? appL10n.stateDirectHost)} · ${appL10n.stateDirect}',
 };
 
 String _short(String name) {
@@ -95,13 +101,21 @@ final secretStoreProvider = Provider<SecretStore>((ref) => SecureSecretStore());
 // ── Saved SSH hosts ──────────────────────────────────────────────────────────
 
 class HostsState {
-  const HostsState({this.ssh = const [], this.loaded = false});
+  const HostsState({this.ssh = const [], this.direct = const [], this.loaded = false});
 
   final List<SshHostConfig> ssh;
+  final List<DirectHostConfig> direct;
   final bool loaded;
 
   SshHostConfig? sshById(String id) {
     for (final h in ssh) {
+      if (h.id == id) return h;
+    }
+    return null;
+  }
+
+  DirectHostConfig? directById(String id) {
+    for (final h in direct) {
       if (h.id == id) return h;
     }
     return null;
@@ -111,6 +125,7 @@ class HostsState {
 /// Saved SSH hosts: configs in SharedPreferences, secrets in [SecretStore].
 class HostsController extends Notifier<HostsState> {
   static const prefsKey = 'remote_ssh_hosts';
+  static const directPrefsKey = 'remote_direct_hosts';
 
   SecretStore get _secrets => ref.read(secretStoreProvider);
   late Future<void> _loaded;
@@ -127,6 +142,7 @@ class HostsController extends Notifier<HostsState> {
 
   Future<void> _load() async {
     var hosts = const <SshHostConfig>[];
+    var direct = const <DirectHostConfig>[];
     try {
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getString(prefsKey);
@@ -134,17 +150,32 @@ class HostsController extends Notifier<HostsState> {
         final list = jsonDecode(raw);
         if (list is List) hosts = list.map(SshHostConfig.fromJson).whereType<SshHostConfig>().toList();
       }
+      final directRaw = prefs.getString(directPrefsKey);
+      if (directRaw != null) {
+        final list = jsonDecode(directRaw);
+        if (list is List) direct = list.map(DirectHostConfig.fromJson).whereType<DirectHostConfig>().toList();
+      }
     } catch (_) {
       // No preferences backend (tests) or a corrupt entry: start empty.
     }
-    state = HostsState(ssh: hosts, loaded: true);
+    state = HostsState(ssh: hosts, direct: direct, loaded: true);
   }
 
   Future<bool> _persist(List<SshHostConfig> hosts) async {
-    state = HostsState(ssh: List.unmodifiable(hosts), loaded: true);
+    state = HostsState(ssh: List.unmodifiable(hosts), direct: state.direct, loaded: true);
     try {
       final prefs = await SharedPreferences.getInstance();
       return await prefs.setString(prefsKey, jsonEncode([for (final h in hosts) h.toJson()]));
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> _persistDirect(List<DirectHostConfig> hosts) async {
+    state = HostsState(ssh: state.ssh, direct: List.unmodifiable(hosts), loaded: true);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return await prefs.setString(directPrefsKey, jsonEncode([for (final h in hosts) h.toJson()]));
     } catch (_) {
       return false;
     }
@@ -228,6 +259,67 @@ class HostsController extends Notifier<HostsState> {
       } catch (_) {}
     }
     unawaited(ref.read(activeHostProvider.notifier).forget((h) => h == HostRef.ssh(id)));
+  }
+
+  /// Adds or replaces [config]. With [secrets], stores the token and the
+  /// Basic Auth password (an empty password clears it, so a host never keeps
+  /// a stale credential next to a removed Basic Auth user).
+  /// Returns the preferences write result.
+  Future<bool> saveDirect(DirectHostConfig config, {DirectSecrets? secrets}) async {
+    await _loaded;
+    ref.read(readListCredentialEpochProvider.notifier).advance();
+    if (secrets != null) await _writeDirectSecrets(config, secrets);
+    final hosts = [...state.direct];
+    final index = hosts.indexWhere((h) => h.id == config.id);
+    if (index >= 0) {
+      hosts[index] = config;
+    } else {
+      hosts.add(config);
+    }
+    return _persistDirect(hosts);
+  }
+
+  Future<void> _writeDirectSecrets(DirectHostConfig config, DirectSecrets secrets) async {
+    Future<void> put(String key, String? value) async {
+      if (value == null || value.isEmpty) {
+        await _secrets.delete(key);
+      } else {
+        await _secrets.write(key, value);
+      }
+    }
+
+    await put(DirectSecrets.tokenKey(config.id), secrets.token?.trim());
+    await put(
+      DirectSecrets.basicAuthPasswordKey(config.id),
+      config.basicAuthUser == null ? null : secrets.basicAuthPassword,
+    );
+  }
+
+  Future<DirectSecrets> loadDirectSecrets(String id) async {
+    Future<String?> get(String key) async {
+      try {
+        return await _secrets.read(key);
+      } catch (_) {
+        return null;
+      }
+    }
+
+    return DirectSecrets(
+      token: await get(DirectSecrets.tokenKey(id)),
+      basicAuthPassword: await get(DirectSecrets.basicAuthPasswordKey(id)),
+    );
+  }
+
+  /// Removes the host and its secrets; switches back to 本机 if it was active.
+  Future<void> removeDirect(String id) async {
+    await _loaded;
+    await _persistDirect([...state.direct.where((h) => h.id != id)]);
+    for (final key in [DirectSecrets.tokenKey(id), DirectSecrets.basicAuthPasswordKey(id)]) {
+      try {
+        await _secrets.delete(key);
+      } catch (_) {}
+    }
+    unawaited(ref.read(activeHostProvider.notifier).forget((h) => h == HostRef.direct(id)));
   }
 
   /// Trust on first use: remembers the key the person accepted.

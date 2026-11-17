@@ -200,6 +200,7 @@ class DshClient {
     String? launchUrl,
     DshCookie? cookie,
     String? hostHeader,
+    DshBasicAuth? basicAuth,
     MuxOptions muxOptions = const MuxOptions(),
     DshTracer? tracer,
     bool backgroundSessionLists = false,
@@ -216,7 +217,13 @@ class DshClient {
       launchToken ??= parsed.token;
     }
     if (base == null) throw ArgumentError('baseUri or launchUrl is required');
-    final connection = DshConnection(base, hostHeader: hostHeader, cookie: cookie, tracer: tracer);
+    final connection = DshConnection(
+      base,
+      hostHeader: hostHeader,
+      cookie: cookie,
+      basicAuth: basicAuth,
+      tracer: tracer,
+    );
     final client = DshClient(
       connection,
       muxOptions: muxOptions,
