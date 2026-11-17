@@ -156,7 +156,7 @@ class _WebHomeState extends ConsumerState<WebHome> {
     final phoneLayout = ref.watch(settingsProvider.select((s) => s.webPhoneLayout));
     final Widget page = switch (access) {
       LocalDshWeb() => LocalWebScreen(handle: _handle, link: _link, onSession: _onSession),
-      SshDshWeb(:final url, :final hostName) => WebViewPage(
+      SshDshWeb(:final url, :final hostName) || DirectDshWeb(:final url, :final hostName) => WebViewPage(
         // A new forward (reconnect) or layout switch: a new page.
         key: ValueKey((url, phoneLayout)),
         url: url,

@@ -213,6 +213,18 @@ final readListIdentityProvider = Provider<ReadListIdentity?>((ref) {
       if ((connection?.workingDirectory?.length ?? 0) > 4096) return null;
       final resolved = ref.watch(_resolvedDirectoriesProvider).observe(config.digest, connection);
       return ReadListIdentity.of([config.digest, resolved]);
+    case HostKind.direct:
+      final hosts = ref.watch(hostsProvider);
+      final host = hosts.directById(selected.id);
+      if (!hosts.loaded || host == null) {
+        return null;
+      }
+      if (host.id.length > 256 || host.connectionKey.length > 8192) {
+        return null;
+      }
+      final config = ReadListIdentity.of(['direct', host.id, host.connectionKey, epoch]);
+      final resolved = ref.watch(_resolvedDirectoriesProvider).observe(config.digest, connection);
+      return ReadListIdentity.of([config.digest, resolved]);
     case HostKind.relay:
       final account = ref.watch(relayAccountProvider);
       if (account.isLoading || account.hasError) return null;

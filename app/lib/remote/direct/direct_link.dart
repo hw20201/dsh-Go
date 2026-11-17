@@ -24,15 +24,13 @@ Future<DshClient> _defaultConnector({required Uri baseUri, required String token
 /// after the app comes back does not parse JSON on the UI thread.
 class DirectHostLink implements HostLink {
   DirectHostLink({
-    required DirectHostConfig config,
-    required Future<DirectSecrets> Function() loadSecrets,
+    required this._config,
+    required this._loadSecrets,
     DirectClientConnector? connectClient,
     Stream<void>? kicks,
     Backoff? backoff,
     this.retryFirstOpen = true,
-  }) : _config = config,
-       _loadSecrets = loadSecrets,
-       _connectClient = connectClient ?? _defaultConnector,
+  }) : _connectClient = connectClient ?? _defaultConnector,
        _backoff = backoff ?? Backoff() {
     _kickSub = kicks?.listen((_) => kick());
   }
@@ -288,6 +286,7 @@ class DirectHostLink implements HostLink {
     _delay.cancel();
     await _kickSub?.cancel();
     await _muxSub?.cancel();
+    _token = null;
     final client = _client;
     _client = null;
     if (client != null) await client.close().catchError((_) {});

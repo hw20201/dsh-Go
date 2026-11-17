@@ -368,6 +368,7 @@ class _SettingsSectionState extends State<SettingsSection> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final title = widget.title;
+    final footer = widget.footer;
     final expanded = !widget.collapsible || _expanded;
     return Padding(
       padding: widget.margin,
@@ -407,7 +408,7 @@ class _SettingsSectionState extends State<SettingsSection> {
                       ),
                     ],
             ),
-          if (expanded && widget.footer case final footer?)
+          if (expanded && footer != null)
             Padding(
               padding: const EdgeInsets.fromLTRB(8, SettingsSection.footerGap, 8, 0),
               child: DefaultTextStyle.merge(

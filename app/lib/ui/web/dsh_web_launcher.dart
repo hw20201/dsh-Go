@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/l10n.dart';
+import '../../remote/direct/direct_link.dart';
 import '../../remote/ssh/ssh_link.dart';
 import '../../state/connection_state.dart';
 import '../../state/hosts_state.dart';
@@ -33,6 +34,14 @@ final class SshDshWeb extends DshWebAccess {
   final String hostName;
 }
 
+/// A direct host: the server's own `dsh web`, reached at its address; the
+/// launch token logs it in.
+final class DirectDshWeb extends DshWebAccess {
+  const DirectDshWeb(this.url, this.hostName);
+  final Uri url;
+  final String hostName;
+}
+
 /// No web page for this host right now; [reason] says why.
 final class NoDshWeb extends DshWebAccess {
   const NoDshWeb(this.reason);
@@ -58,6 +67,16 @@ final dshWebAccessProvider = Provider.autoDispose<DshWebAccess>((ref) {
         return NoDshWeb(appL10n.webConnectHostFirst(name));
       }
       return SshDshWeb(localWebUri('http://127.0.0.1:$port', token), name);
+    case HostKind.direct:
+      // Rebuild once the link connects (or reconnects with a fresh token).
+      ref.watch(hostLinkStatusProvider(host));
+      final link = ref.watch(hostLinkProvider(host));
+      final target = link is DirectHostLink ? link.islandTarget : null;
+      final name = ref.watch(hostNameProvider(host)) ?? appL10n.stateDirectHost;
+      if (target == null) {
+        return NoDshWeb(appL10n.webConnectHostFirst(name));
+      }
+      return DirectDshWeb(localWebUri(target.$1, target.$2), name);
   }
 });
 
@@ -94,7 +113,7 @@ void openDshWeb(BuildContext context, WidgetRef ref, {DshWebTarget target = cons
   switch (ref.read(dshWebAccessProvider)) {
     case LocalDshWeb():
       page = LocalWebScreen(target: target);
-    case SshDshWeb(:final url, :final hostName):
+    case SshDshWeb(:final url, :final hostName) || DirectDshWeb(:final url, :final hostName):
       page = WebViewPage(
         url: url,
         title: context.l10n.webTitle,
