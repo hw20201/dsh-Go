@@ -88,6 +88,22 @@ void main() {
     });
   });
 
+  group('DirectHostConfig lookup', () {
+    test('directByUri matches the same server with or without a trailing slash', () {
+      const state = HostsState(direct: [
+        DirectHostConfig(
+          id: 'direct-1',
+          name: 'srv-main',
+          baseUri: 'https://wuh30617.dpdns.org/dsh',
+          basicAuthUser: 'dsh',
+        ),
+      ]);
+      expect(state.directByUri(Uri.parse('https://wuh30617.dpdns.org/dsh/'))?.id, 'direct-1');
+      expect(state.directByUri(Uri.parse('https://wuh30617.dpdns.org/dsh'))?.id, 'direct-1');
+      expect(state.directByUri(Uri.parse('https://wuh30617.dpdns.org/other')), isNull);
+    });
+  });
+
   group('SshHostConfig', () {
     test('json round-trip, defaults and validation', () {
       final full = sampleSsh.copyWith(workingDirectory: () => '~/code', launchCommand: '~/.nvm/bin/dsh web');

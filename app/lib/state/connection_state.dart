@@ -332,6 +332,24 @@ final hostLinkProvider = Provider.autoDispose.family<HostLink?, HostRef>((ref, h
               return;
             }
             if (ref.read(hostsProvider).directByRelayHostId(host.id, serverUrl: server) != null) return;
+            // A hand-entered entry for the same server already exists: link
+            // it to this Relay host instead of adding a duplicate. Its saved
+            // Basic Auth (if any) is carried over untouched, so the linked
+            // entry keeps working through an nginx gate; a fresh token alone
+            // would fail there with a 401 that looks like a token rejection.
+            final sameUrl = ref.read(hostsProvider).directByUri(Uri.parse(credentials.url));
+            if (sameUrl != null) {
+              final oldSecrets = await ref.read(hostsProvider.notifier).loadDirectSecrets(sameUrl.id);
+              final linked = sameUrl.copyWith(
+                relayHostId: () => host.id,
+                relayServerUrl: () => server,
+              );
+              await ref.read(hostsProvider.notifier).saveDirect(
+                linked,
+                secrets: DirectSecrets(token: credentials.token, basicAuthPassword: oldSecrets.basicAuthPassword),
+              );
+              return;
+            }
             final config = DirectHostConfig(
               id: DirectHostConfig.newId(),
               name: host.name ?? host.id,

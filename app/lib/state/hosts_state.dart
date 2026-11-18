@@ -122,6 +122,16 @@ class HostsState {
     return null;
   }
 
+  /// The direct entry for this server address, if one was saved. The
+  /// comparison uses the normalized dial address, so a trailing slash or a
+  /// different textual form of the same URL still matches.
+  DirectHostConfig? directByUri(Uri uri) {
+    for (final h in direct) {
+      if (h.uri == uri) return h;
+    }
+    return null;
+  }
+
   /// The direct entry synced from a Relay host, if one was saved.
   DirectHostConfig? directByRelayHostId(String relayHostId, {String? serverUrl}) {
     for (final h in direct) {
