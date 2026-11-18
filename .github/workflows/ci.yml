@@ -1,13 +1,7 @@
-# A PR runs what it touches; a push to main runs everything, which also catches
-# whatever the path filters below miss. `CI OK` is the one result to look at.
-# External PRs are closed by pr-gate.yml and spend no runner here.
+# Manual CI only. Automatic push and pull-request runs are disabled.
 name: CI
 
 on:
-  pull_request:
-    branches: [main]
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
