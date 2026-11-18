@@ -126,8 +126,15 @@ class HostsState {
   /// comparison uses the normalized dial address, so a trailing slash or a
   /// different textual form of the same URL still matches.
   DirectHostConfig? directByUri(Uri uri) {
+    // Normalize the query the same way [DirectHostConfig.uri] normalizes a
+    // saved address, so a trailing slash on either side still matches.
+    var text = uri.toString();
+    while (text.endsWith('/')) {
+      text = text.substring(0, text.length - 1);
+    }
+    final normalized = Uri.parse(text);
     for (final h in direct) {
-      if (h.uri == uri) return h;
+      if (h.uri == normalized) return h;
     }
     return null;
   }
