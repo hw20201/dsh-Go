@@ -5,6 +5,8 @@
 // spread deck's top card folds it again (remembered). Swiped up or down, the folded deck brings another card
 // to the front.
 
+import 'dart:async';
+
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -114,31 +116,66 @@ class _DockStackState extends ConsumerState<DockStack> with TickerProviderStateM
   /// Cards brought forward by swipes ([RenderDockStack.turn]); between whole
   /// numbers while one moves.
   late final AnimationController _turn = AnimationController.unbounded(vsync: this);
+  late final AnimationController _settled = AnimationController(vsync: this, duration: AppMotion.glassIn, value: 1);
   double _swipeFrom = 0;
+  bool _dragging = false;
 
   /// The cards showing, by index, after the last layout.
   List<int> _shown = const [];
 
   @override
+  void initState() {
+    super.initState();
+    _spread.addListener(_syncGlass);
+    _spread.addStatusListener(_onMotionStatus);
+    _turn.addListener(_syncGlass);
+    _turn.addStatusListener(_onMotionStatus);
+  }
+
+  @override
   void dispose() {
+    _spread.removeListener(_syncGlass);
+    _spread.removeStatusListener(_onMotionStatus);
+    _turn.removeListener(_syncGlass);
+    _turn.removeStatusListener(_onMotionStatus);
     _curve.dispose();
     _spread.dispose();
     _turn.dispose();
+    _settled.dispose();
     super.dispose();
+  }
+
+  void _onMotionStatus(AnimationStatus _) => _syncGlass();
+
+  void _syncGlass() {
+    final moving = _dragging || _spread.isAnimating || _turn.isAnimating || _turn.value != _turn.value.roundToDouble();
+    if (moving) {
+      if (_settled.isAnimating || _settled.value != 0) _settled.value = 0;
+    } else if (AppMotion.reduced(context)) {
+      _settled.value = 1;
+    } else if (!_settled.isForwardOrCompleted) {
+      unawaited(_settled.forward());
+    }
   }
 
   void _onShown(List<int> shown) {
     if (!mounted || listEquals(shown, _shown)) return;
     setState(() => _shown = shown);
     // Another set of cards: the lowest one is in front again.
+    _swipeFrom = 0;
+    // Fewer than two cards unfolds the deck, which drops the drag
+    // recognizer: a held drag can no longer end, so end it here.
+    if (_dragging && shown.length < 2) _dragging = false;
     _turn.value = 0;
   }
 
   void _fold(bool folded) => ref.read(dockFoldedProvider.notifier).set(folded);
 
   void _swipeStart(DragStartDetails _) {
+    _dragging = true;
     _turn.stop();
     _swipeFrom = _turn.value.roundToDouble();
+    _syncGlass();
   }
 
   void _swipe(DragUpdateDetails details) {
@@ -148,6 +185,7 @@ class _DockStackState extends ConsumerState<DockStack> with TickerProviderStateM
   }
 
   void _swipeEnd(DragEndDetails details) {
+    _dragging = false;
     final v = details.primaryVelocity ?? 0;
     final moved = _turn.value - _swipeFrom;
     final target = v > DockStackMetrics.turnVelocity || moved > 0.35
@@ -159,11 +197,20 @@ class _DockStackState extends ConsumerState<DockStack> with TickerProviderStateM
     _turnTo(target);
   }
 
-  void _turnTo(double target) => _turn.animateTo(
-    target,
-    duration: AppMotion.of(context, AppMotion.standard),
-    curve: AppMotion.glide,
-  );
+  void _swipeCancel() {
+    if (!_dragging) return;
+    _dragging = false;
+    _turnTo(_swipeFrom);
+  }
+
+  void _turnTo(double target) {
+    unawaited(_turn.animateTo(
+      target,
+      duration: AppMotion.of(context, AppMotion.standard),
+      curve: AppMotion.glide,
+    ));
+    _syncGlass();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -179,8 +226,10 @@ class _DockStackState extends ConsumerState<DockStack> with TickerProviderStateM
     }
     final accessory = widget.accessory;
     final layout = AnimatedBuilder(
-      animation: Listenable.merge([_curve, _turn]),
-      builder: (context, _) => _DockStackLayout(
+      animation: Listenable.merge([_curve, _turn, _settled]),
+      builder: (context, _) => GlassBackdropScope(
+        settled: _settled.value,
+        child: _DockStackLayout(
         spread: _curve.value,
         turn: _turn.value,
         hasAccessory: accessory != null,
@@ -198,6 +247,7 @@ class _DockStackState extends ConsumerState<DockStack> with TickerProviderStateM
             child: _FoldButton(onTap: () => _fold(true)),
           ),
         ],
+        ),
       ),
     );
     // One shape folded or spread, only the callbacks change: a different
@@ -219,6 +269,7 @@ class _DockStackState extends ConsumerState<DockStack> with TickerProviderStateM
         onVerticalDragStart: folded ? _swipeStart : null,
         onVerticalDragUpdate: folded ? _swipe : null,
         onVerticalDragEnd: folded ? _swipeEnd : null,
+        onVerticalDragCancel: folded ? _swipeCancel : null,
         child: layout,
       ),
     );
@@ -243,7 +294,7 @@ class _FoldButton extends StatelessWidget {
         key: const ValueKey('dock-fold'),
         tier: GlassTier.chrome,
         stadium: true,
-        // One backdrop sample with the deck's bars.
+        // The deck's scope isolates this sample from the faded cards.
         grouped: true,
         onTap: onTap,
         child: SizedBox.square(
@@ -365,6 +416,10 @@ class RenderDockStack extends RenderBox
 
   @override
   bool get isRepaintBoundary => false;
+
+  // paint() pushes opacity layers even when the theme disables every blur.
+  @override
+  bool get alwaysNeedsCompositing => true;
 
   List<RenderBox> get _children {
     final all = <RenderBox>[];

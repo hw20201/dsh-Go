@@ -9,6 +9,21 @@ import 'motion.dart';
 import 'shapes.dart';
 import 'surfaces.dart';
 
+/// Glass under a moving, translucent stack. Each surface samples independently:
+/// sharing a backdrop key across transformed opacity layers mixes render targets.
+/// A zero [settled] keeps the filter node but uses an opaque fill while moving.
+class GlassBackdropScope extends InheritedWidget {
+  const GlassBackdropScope({super.key, required this.settled, required super.child});
+
+  final double settled;
+
+  static GlassBackdropScope? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<GlassBackdropScope>();
+
+  @override
+  bool updateShouldNotify(GlassBackdropScope oldWidget) => settled != oldWidget.settled;
+}
+
 /// 玻璃表面:**模糊背后的内容 → 叠半透明填充 → 发丝描边 + 顶边高光 → 外投影**。
 ///
 /// ```dart
@@ -111,11 +126,14 @@ class GlassSurface extends StatelessWidget {
     final highContrast = MediaQuery.maybeHighContrastOf(context) ?? false;
     final reduce = !surfaces.blurEnabled || highContrast || uiTraceNoBlur;
     final useBlur = !reduce && (blur ?? s.blurs);
+    final backdrop = GlassBackdropScope.maybeOf(context);
+    final resting = math.min(settled ?? 1, backdrop?.settled ?? 1);
+    final useGrouping = grouped && backdrop == null;
     if (uiTraceEnabled) {
-      uiTrace('glass', 'build', {'tier': tier.name, 'blur': useBlur, 'grouped': grouped});
+      uiTrace('glass', 'build', {'tier': tier.name, 'blur': useBlur, 'grouped': useGrouping});
     }
     final fill = useBlur
-        ? Color.lerp(s.fallbackFill, s.fill, settled ?? 1)!
+        ? Color.lerp(s.fallbackFill, s.fill, resting)!
         : (reduce || s.blurs ? s.fallbackFill : s.fill);
     final shape = _shape;
     final textDirection = Directionality.maybeOf(context);
@@ -152,10 +170,17 @@ class GlassSurface extends StatelessWidget {
 
     if (useBlur) {
       final config = _filterFor(s.blurs ? s.blurSigma : 14, s.saturation);
-      final sampling = settled != 0;
-      content = grouped
+      final sampling = resting != 0;
+      content = useGrouping
           ? BackdropFilter.grouped(filterConfig: config, enabled: sampling, child: content)
-          : BackdropFilter(filterConfig: config, enabled: sampling, child: content);
+          : BackdropFilter(
+              filterConfig: config,
+              enabled: sampling,
+              // The stack fades cards in offscreen opacity layers: replace the
+              // sampled backdrop rather than blending it into that layer twice.
+              blendMode: backdrop == null ? BlendMode.srcOver : BlendMode.src,
+              child: content,
+            );
       content = _clip(content);
     }
 
