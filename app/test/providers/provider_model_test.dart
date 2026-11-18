@@ -514,6 +514,30 @@ void main() {
     expect(backend.profiles.first.models.last.thinkingLevels, ['high']);
   });
 
+  test('adding pulled models appends only the new ones, and a re-pull is a no-op', () async {
+    final backend = sampleBackend();
+    final container = ProviderContainer(overrides: providerOverrides(backend));
+    addTearDown(container.dispose);
+    final provider = (await container.read(customProvidersProvider.future))!.byId('custom-mygw')!;
+    final before = provider.models.map((m) => m.id).toList();
+    await container.read(providerActionsProvider).addModels(provider, [
+      const ProviderModelSpec(id: 'gpt-6.1-sol', name: 'GPT-6.1 Sol'),
+      // Already saved: must not duplicate.
+      provider.models.first,
+    ]);
+    final after = backend.profiles.first.models.map((m) => m.id).toList();
+    expect(after, [...before, 'gpt-6.1-sol']);
+    final updates = backend.calls.where((c) => c.$1 == 'update').toList();
+    expect(updates, hasLength(1));
+    expect(updates.single.$2.keys.toSet(), {'id', 'models', 'expectedRevision'});
+    // Pulling the same list again writes nothing.
+    await container.read(providerActionsProvider).addModels(
+      (await container.read(customProvidersProvider.future))!.byId('custom-mygw')!,
+      [const ProviderModelSpec(id: 'gpt-6.1-sol')],
+    );
+    expect(backend.calls.where((c) => c.$1 == 'update'), hasLength(1));
+  });
+
   group('golden', () {
     goldenTall(
       'provider_model',

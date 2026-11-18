@@ -60,6 +60,8 @@ class _Failed extends _Probe {
 class _ProviderDetailPageState extends ConsumerState<ProviderDetailPage> {
   _Probe? _probe;
   bool _deleting = false;
+  bool _fetching = false;
+  String? _fetchError;
 
   void _push(Widget page) => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page));
 
@@ -79,6 +81,40 @@ class _ProviderDetailPageState extends ConsumerState<ProviderDetailPage> {
       if (mounted) setState(() => _probe = _Passed(count));
     } catch (error) {
       if (mounted) setState(() => _probe = _Failed(describeProviderError(error)));
+    }
+  }
+
+  /// 拉取模型: asks the endpoint (with the stored key) for its current
+  /// list, lets the user tick the ones to keep, and appends them to this
+  /// provider. A re-pull after the upstream changed its models shows only
+  /// the new ones unticked; the ones already saved stay put.
+  Future<void> _fetchModels(CustomProvider provider) async {
+    setState(() {
+      _fetching = true;
+      _fetchError = null;
+    });
+    try {
+      final result = await ref.read(providerActionsProvider).discover(
+        api: provider.api ?? ProviderApi.openaiCompletions,
+        baseUrl: provider.baseUrl,
+        existingId: provider.id,
+      );
+      if (!mounted) return;
+      if (result.models.isEmpty) {
+        setState(() => _fetchError = context.l10n.engineProviderNoDiscoveredModels);
+        return;
+      }
+      final picked = await showModelPicker(
+        context,
+        candidates: result.models,
+        added: {for (final m in provider.models) m.id},
+      );
+      if (picked == null || picked.isEmpty || !mounted) return;
+      await ref.read(providerActionsProvider).addModels(provider, [for (final m in picked) m.toSpec()]);
+    } catch (error) {
+      if (mounted) setState(() => _fetchError = describeProviderError(error));
+    } finally {
+      if (mounted) setState(() => _fetching = false);
     }
   }
 
@@ -257,6 +293,12 @@ class _ProviderDetailPageState extends ConsumerState<ProviderDetailPage> {
                     iconColor: colors.textTertiary,
                     title: l10n.engineProviderNoModels,
                   ),
+                if (canEdit)
+                  _FetchRow(
+                    fetching: _fetching,
+                    error: _fetchError,
+                    onTap: _fetching ? null : () => _fetchModels(provider),
+                  ),
               ],
             ),
             if (!provider.editable) FeatureNote(l10n.engineProviderWebConfigured),
@@ -313,6 +355,35 @@ class _TestRow extends StatelessWidget {
       subtitleMaxLines: 2,
       chevron: false,
       trailing: probe is _Testing
+          ? SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2, color: colors.textTertiary))
+          : null,
+      onTap: onTap,
+    );
+  }
+}
+
+/// 「获取模型」 and its outcome on the second line. Tapping it asks the
+/// endpoint for its current model list, so a provider that added or renamed
+/// models can be refreshed without retyping anything.
+class _FetchRow extends StatelessWidget {
+  const _FetchRow({required this.fetching, required this.error, required this.onTap});
+
+  final bool fetching;
+  final String? error;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final colors = DshColors.of(context);
+    return ListPageRow(
+      icon: AppIcons.refresh,
+      title: fetching ? l10n.engineProviderFetchingModels : l10n.engineProviderFetchModels,
+      subtitle: error,
+      subtitleColor: error == null ? null : colors.danger,
+      subtitleMaxLines: 2,
+      chevron: false,
+      trailing: fetching
           ? SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2, color: colors.textTertiary))
           : null,
       onTap: onTap,

@@ -667,6 +667,28 @@ class ProviderActions {
       ..invalidate(modelCatalogProvider);
   }
 
+  /// Appends models the endpoint just listed to [provider] (matched by id,
+  /// so a re-pull never duplicates one already saved): only the `models` list
+  /// is written, so nothing else of the profile changes. A no-op when every
+  /// given model is already there.
+  Future<void> addModels(CustomProvider provider, List<ProviderModelSpec> models) async {
+    final backend = _backend;
+    final current = _snapshot?.byId(provider.id) ?? provider;
+    final revision = _snapshot?.revision;
+    final existing = {for (final m in current.models) m.id};
+    final appended = [...current.models, for (final m in models) if (!existing.contains(m.id)) m];
+    if (appended.length == current.models.length) return;
+    _ref.read(readListCredentialEpochProvider.notifier).advance();
+    await backend.update(
+      provider.id,
+      models: appended,
+      expectedRevision: revision,
+    );
+    _ref
+      ..invalidate(customProvidersProvider)
+      ..invalidate(modelCatalogProvider);
+  }
+
   /// Removes the route and, when no other route shares it, the key it named
   /// (the official page does the same for keys it manages).
   Future<void> delete(CustomProvider provider) async {
