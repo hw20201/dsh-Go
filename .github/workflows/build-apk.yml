@@ -1,0 +1,59 @@
+# Build the Android release APK (R8) and upload it as an artifact.
+# Trigger it manually from the Actions tab (workflow_dispatch).
+# No release keystore is configured, so the APK is debug-signed and
+# cannot upgrade over the official v1.1.0; uninstall the official app first.
+name: Build Android APK (R8)
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch, tag or SHA to build (default: main)'
+        required: false
+        default: 'main'
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: 3.47.7
+  TZ: Asia/Shanghai
+
+jobs:
+  build-apk:
+    name: Build release APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Install dependencies
+        working-directory: app
+        run: flutter pub get --enforce-lockfile
+      - name: Build release APK (R8)
+        working-directory: app
+        run: flutter build apk --release
+      - name: Show APKs and hashes
+        working-directory: app
+        run: |
+          ls -lh build/app/outputs/flutter-apk/
+          sha256sum build/app/outputs/flutter-apk/*.apk
+      - name: Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsh-go-release-apk
+          path: app/build/app/outputs/flutter-apk/*.apk
+          retention-days: 14
