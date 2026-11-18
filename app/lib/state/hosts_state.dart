@@ -280,6 +280,17 @@ class HostsController extends Notifier<HostsState> {
     return _persistDirect(hosts);
   }
 
+  /// Replaces only the launch token of an existing direct host. Unlike
+  /// [saveDirect], this never touches the Basic Auth password, so a token
+  /// refresh after a DSH restart cannot wipe a stored password.
+  Future<void> updateDirectToken(String id, String token) async {
+    await _loaded;
+    ref.read(readListCredentialEpochProvider.notifier).advance();
+    final trimmed = token.trim();
+    if (trimmed.isEmpty) return;
+    await _secrets.write(DirectSecrets.tokenKey(id), trimmed);
+  }
+
   Future<void> _writeDirectSecrets(DirectHostConfig config, DirectSecrets secrets) async {
     Future<void> put(String key, String? value) async {
       if (value == null || value.isEmpty) {
