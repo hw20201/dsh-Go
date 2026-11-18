@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:dsh_client/dsh_client.dart';
 
 import '../../l10n/l10n.dart';
+import '../direct/direct_host_config.dart';
 import '../link_status.dart';
 
 /// A sign-in provider the Server offers for browser sign-in
@@ -161,6 +162,12 @@ abstract class RelayBackend {
   /// Opens an end-to-end encrypted tunnel to [host] and returns a ready
   /// client. [onState] reports progress and later drops/reconnects.
   Future<DshClient> connectHost(RelayHost host, {RelayStateCallback? onState});
+}
+
+/// Optional credential handoff over the authenticated Host business channel.
+abstract interface class RelayDirectConfigBackend {
+  bool canRefreshDirectConfig(String hostId);
+  Future<DirectConnectionCredentials?> readDirectConfig(DshClient client);
 }
 
 /// Optional real network observations, without expanding the account/backend contract.

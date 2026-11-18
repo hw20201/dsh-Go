@@ -123,9 +123,12 @@ class HostsState {
   }
 
   /// The direct entry synced from a Relay host, if one was saved.
-  DirectHostConfig? directByRelayHostId(String relayHostId) {
+  DirectHostConfig? directByRelayHostId(String relayHostId, {String? serverUrl}) {
     for (final h in direct) {
-      if (h.relayHostId == relayHostId) return h;
+      if (h.relayHostId == relayHostId &&
+          (serverUrl == null || h.relayServerUrl == null || h.relayServerUrl == serverUrl)) {
+        return h;
+      }
     }
     return null;
   }
@@ -138,6 +141,15 @@ class HostsController extends Notifier<HostsState> {
 
   SecretStore get _secrets => ref.read(secretStoreProvider);
   late Future<void> _loaded;
+  Future<void> _directWrites = Future.value();
+
+  // Token refresh, edits and deletion share a queue, so a late secure-storage
+  // write cannot restore credentials after a host has been removed.
+  Future<T> _writeDirect<T>(Future<T> Function() action) {
+    final result = _directWrites.then((_) => action());
+    _directWrites = result.then<void>((_) {}, onError: (Object _, StackTrace _) {});
+    return result;
+  }
 
   @override
   HostsState build() {
@@ -274,7 +286,7 @@ class HostsController extends Notifier<HostsState> {
   /// Basic Auth password (an empty password clears it, so a host never keeps
   /// a stale credential next to a removed Basic Auth user).
   /// Returns the preferences write result.
-  Future<bool> saveDirect(DirectHostConfig config, {DirectSecrets? secrets}) async {
+  Future<bool> saveDirect(DirectHostConfig config, {DirectSecrets? secrets}) => _writeDirect(() async {
     await _loaded;
     ref.read(readListCredentialEpochProvider.notifier).advance();
     if (secrets != null) await _writeDirectSecrets(config, secrets);
@@ -286,18 +298,26 @@ class HostsController extends Notifier<HostsState> {
       hosts.add(config);
     }
     return _persistDirect(hosts);
-  }
+  });
 
   /// Replaces only the launch token of an existing direct host. Unlike
   /// [saveDirect], this never touches the Basic Auth password, so a token
   /// refresh after a DSH restart cannot wipe a stored password.
-  Future<void> updateDirectToken(String id, String token) async {
-    await _loaded;
-    ref.read(readListCredentialEpochProvider.notifier).advance();
-    final trimmed = token.trim();
-    if (trimmed.isEmpty) return;
-    await _secrets.write(DirectSecrets.tokenKey(id), trimmed);
-  }
+  Future<bool> updateDirectToken(String id, String token, {DirectHostConfig? expected, bool Function()? isCurrent}) =>
+      _writeDirect(() async {
+        await _loaded;
+        final current = state.directById(id);
+        if (current == null ||
+            (expected != null && !identical(expected, current)) ||
+            (isCurrent != null && !isCurrent())) {
+          return false;
+        }
+        final trimmed = token.trim();
+        if (trimmed.isEmpty) return false;
+        await _secrets.write(DirectSecrets.tokenKey(id), trimmed);
+        ref.read(readListCredentialEpochProvider.notifier).advance();
+        return true;
+      });
 
   Future<void> _writeDirectSecrets(DirectHostConfig config, DirectSecrets secrets) async {
     Future<void> put(String key, String? value) async {
@@ -331,7 +351,7 @@ class HostsController extends Notifier<HostsState> {
   }
 
   /// Removes the host and its secrets; switches back to 本机 if it was active.
-  Future<void> removeDirect(String id) async {
+  Future<void> removeDirect(String id) => _writeDirect(() async {
     await _loaded;
     await _persistDirect([...state.direct.where((h) => h.id != id)]);
     for (final key in [DirectSecrets.tokenKey(id), DirectSecrets.basicAuthPasswordKey(id)]) {
@@ -340,7 +360,7 @@ class HostsController extends Notifier<HostsState> {
       } catch (_) {}
     }
     unawaited(ref.read(activeHostProvider.notifier).forget((h) => h == HostRef.direct(id)));
-  }
+  });
 
   /// Trust on first use: remembers the key the person accepted.
   Future<void> pinHostKey(String id, PresentedHostKey key) async {
@@ -464,8 +484,9 @@ class RemoteTransportPolicyController extends Notifier<RemoteTransportPolicy> {
   }
 }
 
-final remoteTransportPolicyProvider =
-    NotifierProvider<RemoteTransportPolicyController, RemoteTransportPolicy>(RemoteTransportPolicyController.new);
+final remoteTransportPolicyProvider = NotifierProvider<RemoteTransportPolicyController, RemoteTransportPolicy>(
+  RemoteTransportPolicyController.new,
+);
 
 /// Which host the chat, session list and new chats use. Persisted.
 class ActiveHostController extends Notifier<HostRef> {

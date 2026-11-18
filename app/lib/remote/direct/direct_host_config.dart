@@ -1,11 +1,58 @@
 import 'dart:math' as math;
 
+import 'package:dsh_remote/dsh_remote.dart' show normalizeServerUrl;
+
+/// Credentials received only from an authenticated Remote Host. Never log this
+/// object or include its token in preferences, traces or error messages.
+class DirectConnectionCredentials {
+  const DirectConnectionCredentials({required this.url, required this.token});
+
+  final String url;
+  final String token;
+
+  static DirectConnectionCredentials? tryParse(Object? value) {
+    if (value is! Map) return null;
+    final url = value['url'];
+    final token = value['token'];
+    if (url is! String || url.length > 4096 || token is! String || token.trim().isEmpty || token.length > 4096) {
+      return null;
+    }
+    final uri = Uri.tryParse(url);
+    if (uri == null ||
+        (uri.scheme != 'https' && uri.scheme != 'http') ||
+        uri.host.isEmpty ||
+        uri.userInfo.isNotEmpty ||
+        uri.hasQuery ||
+        uri.hasFragment) {
+      return null;
+    }
+    try {
+      // As for the Remote server, HTTP is accepted only on private networks.
+      normalizeServerUrl(uri.origin);
+    } on ArgumentError {
+      return null;
+    }
+    var normalizedUrl = uri.toString();
+    while (normalizedUrl.endsWith('/')) {
+      normalizedUrl = normalizedUrl.substring(0, normalizedUrl.length - 1);
+    }
+    return DirectConnectionCredentials(url: normalizedUrl, token: token.trim());
+  }
+}
+
 /// One saved direct DSH host: a server URL, reached the way DSH Mobile does
 /// (plain HTTP/WebSocket to the server, no SSH, no relay). Persisted as JSON
 /// in SharedPreferences (no secrets); the launch token and any Basic Auth
 /// password live in the [SecretStore] under [DirectSecrets] keys.
 class DirectHostConfig {
-  const DirectHostConfig({required this.id, required this.name, required this.baseUri, this.basicAuthUser, this.relayHostId});
+  const DirectHostConfig({
+    required this.id,
+    required this.name,
+    required this.baseUri,
+    this.basicAuthUser,
+    this.relayHostId,
+    this.relayServerUrl,
+  });
 
   /// Stable id (`direct-<hex>`); also the secret-store namespace.
   final String id;
@@ -21,9 +68,12 @@ class DirectHostConfig {
   /// if any. The password lives in the secret store; null means no Basic Auth.
   final String? basicAuthUser;
 
-  /// The Relay host this direct entry was synced from, if any. Used to avoid
-  /// fetching the same host's direct config on every reconnect.
+  /// The trusted Remote Host this direct entry was synced from, if any.
   final String? relayHostId;
+
+  /// The Remote server origin for that association. Legacy unscoped entries
+  /// can refresh only when the trusted Host confirms the exact saved URL.
+  final String? relayServerUrl;
 
   /// The address as the client dials it (no trailing slash).
   Uri get uri {
@@ -37,14 +87,20 @@ class DirectHostConfig {
   /// Fields that require a new connection when they change (a rename doesn't).
   String get connectionKey => [uri.toString(), basicAuthUser ?? ''].join('\u0000');
 
-  DirectHostConfig copyWith({String? name, String? baseUri, String? Function()? basicAuthUser, String? Function()? relayHostId}) =>
-      DirectHostConfig(
-        id: id,
-        name: name ?? this.name,
-        baseUri: baseUri ?? this.baseUri,
-        basicAuthUser: basicAuthUser != null ? basicAuthUser() : this.basicAuthUser,
-        relayHostId: relayHostId != null ? relayHostId() : this.relayHostId,
-      );
+  DirectHostConfig copyWith({
+    String? name,
+    String? baseUri,
+    String? Function()? basicAuthUser,
+    String? Function()? relayHostId,
+    String? Function()? relayServerUrl,
+  }) => DirectHostConfig(
+    id: id,
+    name: name ?? this.name,
+    baseUri: baseUri ?? this.baseUri,
+    basicAuthUser: basicAuthUser != null ? basicAuthUser() : this.basicAuthUser,
+    relayHostId: relayHostId != null ? relayHostId() : this.relayHostId,
+    relayServerUrl: relayServerUrl != null ? relayServerUrl() : this.relayServerUrl,
+  );
 
   Map<String, Object?> toJson() => {
     'id': id,
@@ -52,6 +108,7 @@ class DirectHostConfig {
     'baseUri': baseUri,
     if (basicAuthUser != null) 'basicAuthUser': basicAuthUser,
     if (relayHostId != null) 'relayHostId': relayHostId,
+    if (relayServerUrl != null) 'relayServerUrl': relayServerUrl,
   };
 
   static String newId([math.Random? random]) {
@@ -68,12 +125,14 @@ class DirectHostConfig {
     if (id is! String || id.isEmpty || name is! String || baseUri is! String || baseUri.isEmpty) return null;
     final basicAuthUser = raw['basicAuthUser'];
     final relayHostId = raw['relayHostId'];
+    final relayServerUrl = raw['relayServerUrl'];
     return DirectHostConfig(
       id: id,
       name: name,
       baseUri: baseUri,
       basicAuthUser: basicAuthUser is String && basicAuthUser.isNotEmpty ? basicAuthUser : null,
       relayHostId: relayHostId is String && relayHostId.isNotEmpty ? relayHostId : null,
+      relayServerUrl: relayServerUrl is String && relayServerUrl.isNotEmpty ? relayServerUrl : null,
     );
   }
 }

@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../l10n/l10n.dart';
 import '../../secrets/secure_storage.dart';
+import '../direct/direct_host_config.dart';
 import '../link_status.dart';
 import '../secret_store.dart';
 import 'relay_backend.dart';
@@ -21,7 +22,8 @@ import 'network_route.dart';
 ///
 /// [direct] (直连优先) lets connections try LAN / P2P / TURN over
 /// [peerConnector] (flutter_webrtc) before the Server's relay.
-class DshRemoteRelayBackend implements RelayBackend, RelayNetworkBackend, RelayPairingBackend {
+class DshRemoteRelayBackend
+    implements RelayBackend, RelayNetworkBackend, RelayPairingBackend, RelayDirectConfigBackend {
   DshRemoteRelayBackend({
     required SecretStore secrets,
     Object? serverUrl,
@@ -31,9 +33,8 @@ class DshRemoteRelayBackend implements RelayBackend, RelayNetworkBackend, RelayP
     bool direct = true,
     Future<RemoteNetworkRoute> Function()? resolveNetworkRoute,
     this._loadCompactHistory,
-    Future<remote.RemoteTransportPolicy> Function()? loadTransportPolicy,
-  }) : _loadTransportPolicy = loadTransportPolicy,
-       _resolveNetworkRoute = resolveNetworkRoute ?? resolveRemoteNetworkRoute,
+    this._loadTransportPolicy,
+  }) : _resolveNetworkRoute = resolveNetworkRoute ?? resolveRemoteNetworkRoute,
        account =
            account ??
            remote.RemoteAccount(
@@ -315,6 +316,37 @@ class DshRemoteRelayBackend implements RelayBackend, RelayNetworkBackend, RelayP
           : (s) => onState(_state(s.phase), s.failure == null ? null : describe(s.failure!, host.name)),
     );
   }, hostName: host.name);
+
+  @override
+  bool canRefreshDirectConfig(String hostId) {
+    final carrier = account.activeClient?.remoteCarrier;
+    return carrier == null || carrier.isClosed || carrier.hostId == hostId;
+  }
+
+  @override
+  Future<DirectConnectionCredentials?> readDirectConfig(DshClient client) async {
+    final carrier = client.remoteCarrier;
+    final session = carrier?.session;
+    if (carrier == null || session == null || session.isClosed) return null;
+    try {
+      // Call the Host RPC directly: the generic DSH endpoint carrier traces
+      // response bodies and must never receive the launch credential.
+      final result = await session.rpc.call(
+        'host.direct.config.get.v1',
+        const <String, Object?>{},
+        timeout: const Duration(seconds: 10),
+      );
+      if (carrier.session != session || session.isClosed) return null;
+      return DirectConnectionCredentials.tryParse(result);
+    } on remote.RemoteRpcException catch (error) {
+      if (error.code == 'METHOD_NOT_FOUND' || error.code == 'DIRECT_CONFIG_DISABLED') return null;
+      throw HostLinkError(
+        HostLinkErrorKind.loginFailed,
+        appL10n.remoteErrDshTokenRejected,
+        detail: 'DIRECT_CONFIG_REFRESH_FAILED',
+      );
+    }
+  }
 
   Future<void> close() => account.close();
 

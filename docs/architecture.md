@@ -320,6 +320,12 @@ DshConnection      单个 Host 的物理连接：launch-token → cookie、Host 
 `RemoteRpcClient` → `RemoteTunnelCarrier`（实现 `DshCarrier`，交给普通 `DshClient`）。
 端点白名单 `harnessRemoteAllowlist` 与上游 Host 插件版本耦合，新增端点前先看它。
 
+直连配置同步通过已认证的 Host 业务 RPC `host.direct.config.get.v1` 获取 `{url, token}`，不走通用引擎端点（避免响应体进入引擎 tracer）。Host 必须显式启用 `direct.enabled` 并配置手机可达的 `direct.publicUrl`。首次连接只自动新增缺失的条目，不自动切换当前主机。
+
+`DirectHostLink` 的登录 GET 返回 401 时，通过 `directTokenRefresherProvider` 保持并复用对应 `RelayHostLink`，向同一 Host 请求最新令牌，然后仅重试一次直连登录。请求仍遵守所选 Remote 传输策略；不会把聊天切到中继，不重放 mutation、审批或终端输入。服务器域、Host ID 和返回 URL 必须匹配，旧版未保存服务器域的关联仍要求精确 URL 匹配。另一个活跃 Remote Host 不会被刷新请求挤掉。退出登录、删除或编辑条目期间返回的旧结果不得写回；令牌写入与删除串行，Basic Auth 密码不受影响。旧插件、关闭同步、主机离线或再次 401 时保留原配置并报告失败。
+
+Direct configuration sync uses the authenticated Host business RPC `host.direct.config.get.v1` to obtain `{url, token}`, outside generic engine endpoints so credentials do not enter the engine tracer. The Host must opt in with `direct.enabled` and a phone-reachable `direct.publicUrl`. Discovery adds only missing entries and never selects a host automatically. A direct login GET rejected with 401 reuses the associated Remote link, respecting the selected transport policy, and retries direct login once with a different token. It never redirects chat traffic or replays mutations, approvals or terminal input. Server, Host and endpoint checks, stale-response rejection, serialized credential writes/deletion and token-only updates protect existing entries and Basic Auth. Legacy unscoped associations require an exact endpoint match. Unsupported, disabled, offline or repeatedly rejected refreshes preserve the saved configuration and report failure.
+
 ### 4.3 dsh_tavern / dartssh2
 
 酒馆引擎（SillyTavern 兼容：角色卡/世界书/宏/斜杠命令/正则）纯 Dart；dartssh2 是 vendored 上游加压缩补丁。

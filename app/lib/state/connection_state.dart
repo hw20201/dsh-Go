@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:collection';
 
 import 'package:dsh_client/dsh_client.dart';
-import 'package:dsh_remote/dsh_remote.dart' as remote;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/l10n.dart';
@@ -20,6 +19,7 @@ import 'hosts_state.dart';
 import 'permission_default_repair.dart';
 import 'provider_backend.dart';
 import 'provider_keys.dart';
+import 'read_list_epoch.dart';
 import 'settings_state.dart';
 
 /// A connected DSH host: the on-device engine, an SSH host, a relay device or a direct server.
@@ -171,6 +171,18 @@ final networkKicksProvider = Provider<Stream<void>>((ref) => networkKicks());
 /// Opens SSH connections (dartssh2); tests swap in a fake server.
 final sshTransportFactoryProvider = Provider<SshTransportFactory>((ref) => DartSshTransport.connect);
 
+/// Tests can replace direct login without opening a network connection.
+final directClientConnectorProvider = Provider<DirectClientConnector>(
+  (ref) =>
+      ({required baseUri, required token, basicAuth}) => DshClient.connect(
+        baseUri: baseUri,
+        token: token,
+        basicAuth: basicAuth,
+        backgroundLists: true,
+        startMux: false,
+      ),
+);
+
 /// Builds the link for one remote host. Overridable so tests can inject fake
 /// transports.
 typedef SshLinkFactory = SshHostLink Function(Ref ref, SshHostConfig config);
@@ -190,6 +202,61 @@ final sshLinkFactoryProvider = Provider<SshLinkFactory>(
     );
   },
 );
+
+/// Reuses the normal Host link for credential refresh, without changing the
+/// active host or its selected Remote transport policy. The subscription keeps
+/// the link alive only until this request ends.
+final directTokenRefresherProvider = Provider.autoDispose.family<DirectTokenRefresher, String>(_directTokenRefresher);
+
+DirectTokenRefresher _directTokenRefresher(Ref ref, String id) {
+  return (rejectedToken) async {
+    final config = ref.read(hostsProvider).directById(id);
+    final hostId = config?.relayHostId;
+    final server = ref.read(relayServerProvider) ?? defaultRelayServer;
+    if (config == null || hostId == null || (config.relayServerUrl != null && config.relayServerUrl != server)) {
+      return null;
+    }
+    final backend = ref.read(relayBackendProvider);
+    if (backend is! RelayDirectConfigBackend) return null;
+    final configBackend = backend as RelayDirectConfigBackend;
+    final current = ref.read(activeHostProvider);
+    if (current.kind == HostKind.relay && current.id != hostId) return null;
+    if (!configBackend.canRefreshDirectConfig(hostId)) return null;
+    final credentialEpoch = ref.read(readListCredentialEpochProvider);
+    bool owns() =>
+        ref.mounted &&
+        (ref.read(relayServerProvider) ?? defaultRelayServer) == server &&
+        identical(ref.read(relayBackendProvider), backend) &&
+        identical(ref.read(hostsProvider).directById(id), config);
+    bool maySave() => owns() && ref.read(readListCredentialEpochProvider) == credentialEpoch;
+    try {
+      final subscription = ref.container.listen(hostLinkProvider(HostRef.relay(hostId)), (_, _) {});
+      try {
+        final link = subscription.read();
+        if (link == null) return null;
+        final client = await link.open();
+        if (!owns()) return null;
+        final credentials = await configBackend.readDirectConfig(client);
+        if (!maySave() || credentials == null || Uri.parse(credentials.url) != config.uri) return null;
+        if (credentials.token == rejectedToken) return null;
+        final saved = await ref
+            .read(hostsProvider.notifier)
+            .updateDirectToken(id, credentials.token, expected: config, isCurrent: maySave);
+        return owns() && saved ? credentials.token : null;
+      } finally {
+        subscription.close();
+      }
+    } on HostLinkError {
+      rethrow;
+    } catch (_) {
+      throw HostLinkError(
+        HostLinkErrorKind.loginFailed,
+        appL10n.remoteErrDshTokenRejected,
+        detail: 'DIRECT_CONFIG_REFRESH_FAILED',
+      );
+    }
+  };
+}
 
 /// The live link to a remote host; null for 本机 or an unknown host. Kept while
 /// something watches it (the active connection, a status row); closed after.
@@ -219,6 +286,8 @@ final hostLinkProvider = Provider.autoDispose.family<HostLink?, HostRef>((ref, h
       final link = DirectHostLink(
         config: config,
         loadSecrets: () => ref.read(hostsProvider.notifier).loadDirectSecrets(config.id),
+        refreshToken: ref.watch(directTokenRefresherProvider(config.id)),
+        connectClient: ref.read(directClientConnectorProvider),
         kicks: ref.read(networkKicksProvider),
       );
       // Renames and Basic Auth users apply in place.
@@ -247,32 +316,33 @@ final hostLinkProvider = Provider.autoDispose.family<HostLink?, HostRef>((ref, h
         // host, we never ask again here (a token refresh after a DSH
         // restart is driven by a 401 on the direct path, not by reconnects).
         onConnected: (client) async {
+          if (backend is! RelayDirectConfigBackend) return;
+          final configBackend = backend as RelayDirectConfigBackend;
+          final server = ref.read(relayServerProvider) ?? defaultRelayServer;
+          final existing = ref.read(hostsProvider).directByRelayHostId(host.id, serverUrl: server);
+          if (existing != null) return;
+          final credentialEpoch = ref.read(readListCredentialEpochProvider);
           try {
-            if (ref.read(hostsProvider).directByRelayHostId(host.id) != null) return;
-            final rpc = client.remoteCarrier?.session?.rpc;
-            if (rpc == null || rpc.isClosed) return;
-            final result = await rpc.call(
-              'host.direct.config.get.v1',
-              const <String, Object?>{},
-              timeout: const Duration(seconds: 10),
-            );
-            if (result is! Map) return;
-            final url = result['url'];
-            final token = result['token'];
-            if (url is! String || url.isEmpty || token is! String || token.isEmpty) return;
+            final credentials = await configBackend.readDirectConfig(client);
+            if (!ref.mounted ||
+                credentials == null ||
+                !identical(ref.read(relayBackendProvider), backend) ||
+                (ref.read(relayServerProvider) ?? defaultRelayServer) != server ||
+                ref.read(readListCredentialEpochProvider) != credentialEpoch) {
+              return;
+            }
+            if (ref.read(hostsProvider).directByRelayHostId(host.id, serverUrl: server) != null) return;
             final config = DirectHostConfig(
               id: DirectHostConfig.newId(),
               name: host.name ?? host.id,
-              baseUri: url,
+              baseUri: credentials.url,
               relayHostId: host.id,
+              relayServerUrl: server,
             );
-            await ref.read(hostsProvider.notifier).saveDirect(
-              config,
-              secrets: DirectSecrets(token: token),
-            );
+            await ref.read(hostsProvider.notifier).saveDirect(config, secrets: DirectSecrets(token: credentials.token));
           } catch (_) {
-            // Best effort: an older plugin (or a host with sync disabled)
-            // simply means no auto-sync; manual direct setup still works.
+            // Initial discovery is optional; a direct login failure reports
+            // refresh errors explicitly instead of silently looping.
           }
         },
       );

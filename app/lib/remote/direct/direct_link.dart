@@ -13,6 +13,10 @@ typedef DirectClientConnector = Future<DshClient> Function({
   DshBasicAuth? basicAuth,
 });
 
+/// Returns a newly saved token after a rejected login, or null if it cannot
+/// be refreshed through the associated trusted Remote Host.
+typedef DirectTokenRefresher = Future<String?> Function(String rejectedToken);
+
 Future<DshClient> _defaultConnector({required Uri baseUri, required String token, DshBasicAuth? basicAuth}) =>
     DshClient.connect(baseUri: baseUri, token: token, basicAuth: basicAuth, backgroundLists: true, startMux: false);
 
@@ -27,6 +31,7 @@ class DirectHostLink implements HostLink {
     required this._config,
     required this._loadSecrets,
     DirectClientConnector? connectClient,
+    this._refreshToken,
     Stream<void>? kicks,
     Backoff? backoff,
     this.retryFirstOpen = true,
@@ -38,6 +43,7 @@ class DirectHostLink implements HostLink {
   DirectHostConfig _config;
   final Future<DirectSecrets> Function() _loadSecrets;
   final DirectClientConnector _connectClient;
+  final DirectTokenRefresher? _refreshToken;
   final Backoff _backoff;
 
   /// False for "测试连接": report the first failure instead of retrying.
@@ -134,18 +140,39 @@ class DirectHostLink implements HostLink {
   Future<DshClient> _connectOnce() async {
     final secrets = await _loadSecrets();
     _checkOpen();
-    final token = secrets.token?.trim();
+    var token = secrets.token?.trim();
     if (token == null || token.isEmpty) {
       throw HostLinkError(HostLinkErrorKind.loginFailed, appL10n.remoteErrDirectTokenMissing, retryable: false);
     }
-    _token = token;
     final user = _config.basicAuthUser;
-    final basicAuth = user == null || user.isEmpty
-        ? null
-        : (username: user, password: secrets.basicAuthPassword ?? '');
-    final DshClient client;
+    final basicAuth = user == null || user.isEmpty ? null : (username: user, password: secrets.basicAuthPassword ?? '');
+    late DshClient client;
     try {
-      client = await _connectClient(baseUri: _config.uri, token: token, basicAuth: basicAuth);
+      try {
+        client = await _connectClient(baseUri: _config.uri, token: token, basicAuth: basicAuth);
+      } on DshHttpException catch (e) {
+        if (e.statusCode != 401 || _refreshToken == null) rethrow;
+        // Only a rejected launch token triggers a single refresh; HTTP Basic
+        // Auth failures still fail if the trusted Host has no newer token.
+        final String? refreshed;
+        try {
+          refreshed = await _refreshToken(token);
+        } on HostLinkError catch (error) {
+          // A credential query is attempted once per rejected login, even if
+          // its Remote link reported a retryable connection failure.
+          throw HostLinkError(error.kind, error.message, detail: error.detail);
+        } catch (_) {
+          throw HostLinkError(
+            HostLinkErrorKind.loginFailed,
+            appL10n.remoteErrDshTokenRejected,
+            detail: 'DIRECT_CONFIG_REFRESH_FAILED',
+          );
+        }
+        _checkOpen();
+        if (refreshed == null || refreshed.isEmpty || refreshed == token) rethrow;
+        token = refreshed;
+        client = await _connectClient(baseUri: _config.uri, token: token, basicAuth: basicAuth);
+      }
     } on DshHttpException catch (e) {
       throw HostLinkError(
         HostLinkErrorKind.loginFailed,
@@ -165,6 +192,7 @@ class DirectHostLink implements HostLink {
       await client.close().catchError((_) {});
       throw StateError('link closed');
     }
+    _token = token;
     final existing = _client;
     _client = client;
     _watchMux(client);
@@ -172,13 +200,7 @@ class DirectHostLink implements HostLink {
       _clients.add(client);
       unawaited(existing.close().catchError((_) {}));
     }
-    _emit(
-      HostLinkStatus(
-        HostLinkPhase.connected,
-        completed: HostLinkStep.values.toSet(),
-        detail: _config.baseUri,
-      ),
-    );
+    _emit(HostLinkStatus(HostLinkPhase.connected, completed: HostLinkStep.values.toSet(), detail: _config.baseUri));
     return client;
   }
 
