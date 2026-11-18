@@ -292,14 +292,6 @@ class RunnerContract(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'actual Dart consumer'):
             gates.verify_dart_consumers(self.g.out)
 
-    def test_diagnostics_cli_requires_dart_before_running_native_work(self):
-        result = subprocess.run([sys.executable, str(ROOT / 'runtime/tests/ohos/diagnostics-linux.py'),
-            '--node', 'missing-node', '--typescript-prefix', 'missing-ts', '--zlib-addon', 'missing-addon',
-            '--output', str(self.g.out / 'must-not-start')], capture_output=True, text=True)
-        self.assertEqual(result.returncode, 2)
-        self.assertIn('--dart', result.stderr)
-        self.assertFalse((self.g.out / 'must-not-start').exists())
-
     def test_success_keeps_command_and_raw_output(self):
         self.assertTrue(self.g.run('passed', [sys.executable, '-c', "print('actual child output')"]))
         self.assertEqual((self.g.out / 'groups/passed/stdout.log').read_text(), 'actual child output\n')

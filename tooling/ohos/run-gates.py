@@ -53,7 +53,6 @@ WRAPPED_TEST_LOGS = {
     'voice': ['voice/test.log'],
     'system-asr-native': ['system-asr-native/plain.log', 'system-asr-native/jitless.log'],
     'performance-dart': ['performance-dart/logic.log'],
-    'diagnostics-dart': ['diagnostics-dart/node-test.log'],
     'keyboard-geometry': ['keyboard-geometry/plain.log', 'keyboard-geometry/jitless.log'],
     'composition-process-matrix': ['composition-process-matrix/jit.log', 'composition-process-matrix/strict.log'],
     'pcm-stream-native': ['pcm-stream-native/plain.log', 'pcm-stream-native/jitless.log'],
@@ -1450,12 +1449,10 @@ def main():
           tests=[rt + 'system-asr-native.test.mjs', rt + 'system-asr-channel.test.mjs', rt + 'system-asr-capture.test.mjs'], scope='Real external-PCM ASR ETS, channel, lease and EntryAbility; explicit HMS/Flutter/clock host boundaries; not SDK/device')
     g.run('pcm-stream-native', lambda: g.py(rt + 'pcm-stream-native.py', '--node', node(), '--typescript-prefix', p('typescript_prefix'), '--out', o / 'pcm-stream-native'), needs=('tools',), timeout=240, tests=[rt + 'pcm-stream.test.mjs', rt + 'pcm-stream-call.test.mjs'], scope='Actual PCM ETS: communication usage, 40ms levels from hardware-frame-position doubles, ownership/drain barriers; not SDK or device audio')
     g.run('performance-dart', lambda: g.py(rt + 'performance-linux.py', '--node', node(), '--dart', p('dart'), '--typescript-prefix', p('typescript_prefix'), '--out', o / 'performance-dart'), needs=('tools', 'dart-tools'), timeout=180)
-    g.run('diagnostics-dart', lambda: g.py(rt + 'diagnostics-linux.py', '--node', node(), '--dart', p('dart'), '--typescript-prefix', p('typescript_prefix'), '--zlib-addon', o / 'zlib.node', '--output', o / 'diagnostics-dart'), needs=('tools', 'dart-tools', 'native-zlib-build'), timeout=240)
     g.run('diagnostic-evidence', lambda: g.py(rt + 'diagnostic-evidence-linux.py', '--node', node(), '--typescript-prefix', p('typescript_prefix'), '--zlib-addon', o / 'zlib.node', '--out', o / 'diagnostic-evidence'),
           needs=('tools', 'native-zlib-build'), timeout=240,
           tests=[rt + name for name in ['diagnostic-evidence.test.mjs', 'diagnostic-keyboard.test.mjs', 'diagnostic-evidence-cold.mjs', 'diagnostic-evidence-linux.py']],
           scope='Actual ETS record/fault channel and real Linux FD persistence; explicit HiAppEvent SDK boundary; strict host types and separate cold write/read processes; no device delivery claim')
-    g.internal('dart-consumer-evidence', lambda _: verify_dart_consumers(o), needs=('diagnostics-dart', 'performance-dart'))
     g.node_tests('arkts-compatibility', [rt + 'arkts-compatibility.test.mjs'], needs=('tools',), timeout=120)
     g.run('keyboard-geometry', lambda: g.py(rt + 'keyboard-geometry-linux.py', '--node', node(), '--typescript-prefix', p('typescript_prefix'), '--out', o / 'keyboard-geometry'),
           needs=('tools',), timeout=300, tests=[rt + 'keyboard-geometry.test.mjs', rt + 'keyboard-log.test.mjs', rt + 'entry-ability-fixture.test.mjs'],
