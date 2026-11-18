@@ -39,6 +39,15 @@ void main() {
       expect(e.message, '主机现在不在线');
     });
 
+    test('strict direct failure explains how to recover without automatic fallback', () {
+      final e = map('DIRECT_UNAVAILABLE');
+      expect(e.kind, HostLinkErrorKind.unavailable);
+      expect(e.retryable, isFalse);
+      expect(e.message, contains('仅直连路径不可用'));
+      expect(e.message, contains('自动或仅 Relay'));
+      expect(e.detail, contains('DIRECT_UNAVAILABLE'));
+    });
+
     test('changed identity fails closed', () {
       final e = map('PEER_IDENTITY_MISMATCH');
       expect(e.kind, HostLinkErrorKind.hostKeyMismatch);

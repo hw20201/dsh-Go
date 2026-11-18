@@ -17566,6 +17566,49 @@ class L10nEn extends L10n {
       'Automatically tries LAN → P2P → TURN → Relay, with end-to-end encryption throughout.';
 
   @override
+  String get remoteRouteMode => 'Connection route';
+
+  @override
+  String get remoteRouteAutomatic => 'Automatic (recommended)';
+
+  @override
+  String get remoteRouteRelayOnly => 'Relay only';
+
+  @override
+  String get remoteRouteDirectOnly => 'Direct only (LAN / P2P)';
+
+  @override
+  String get remoteRouteHint =>
+      'Applies only to DSH Remote hosts, on the next connection. Existing connections stay open.';
+
+  @override
+  String get remoteRouteRelayHelp => 'Use Relay only; do not try LAN, P2P or TURN.';
+
+  @override
+  String get remoteRouteDirectHelp =>
+      'Use only LAN/P2P data paths (Relay still handles signaling). If unavailable, fail instead of using TURN or Relay data paths.';
+
+  @override
+  String get remoteRouteSavedMode => 'Next connection';
+
+  @override
+  String get remoteRouteDirectUnavailable => 'WebRTC is unavailable on this device; direct-only cannot be used.';
+
+  @override
+  String get remoteRouteDirectFailed =>
+      'The direct-only path is unavailable. Switch to Automatic or Relay only and retry.';
+
+  @override
+  String get remoteRouteReconnect => 'Reconnect using new route';
+
+  @override
+  String get remoteRouteReconnectTitle => 'Reconnect DSH Remote?';
+
+  @override
+  String get remoteRouteReconnectHint =>
+      'The current connection will close. Ongoing chats or operations may be interrupted.';
+
+  @override
   String get remoteNetworkCurrentPath => 'Current path';
 
   @override

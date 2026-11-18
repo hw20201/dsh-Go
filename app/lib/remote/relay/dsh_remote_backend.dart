@@ -31,7 +31,9 @@ class DshRemoteRelayBackend implements RelayBackend, RelayNetworkBackend, RelayP
     bool direct = true,
     Future<RemoteNetworkRoute> Function()? resolveNetworkRoute,
     this._loadCompactHistory,
-  }) : _resolveNetworkRoute = resolveNetworkRoute ?? resolveRemoteNetworkRoute,
+    Future<remote.RemoteTransportPolicy> Function()? loadTransportPolicy,
+  }) : _loadTransportPolicy = loadTransportPolicy,
+       _resolveNetworkRoute = resolveNetworkRoute ?? resolveRemoteNetworkRoute,
        account =
            account ??
            remote.RemoteAccount(
@@ -58,6 +60,7 @@ class DshRemoteRelayBackend implements RelayBackend, RelayNetworkBackend, RelayP
 
   final remote.RemoteAccount account;
   final Future<bool> Function()? _loadCompactHistory;
+  final Future<remote.RemoteTransportPolicy> Function()? _loadTransportPolicy;
   final Future<RemoteNetworkRoute> Function() _resolveNetworkRoute;
   RemoteNetworkRoute _networkRoute = RemoteNetworkRoute.unknown;
   final _sessionRoutes = Expando<RemoteNetworkRoute>('remote route');
@@ -69,6 +72,9 @@ class DshRemoteRelayBackend implements RelayBackend, RelayNetworkBackend, RelayP
 
   /// Applies from the next (re)connect.
   set direct(bool enabled) => account.peerConnector = enabled ? peerConnector : null;
+
+  /// Applies to the next connection, without replacing an active link.
+  set transportPolicy(remote.RemoteTransportPolicy policy) => account.transportPolicy = policy;
 
   /// Applies to the next client, without disturbing live streams or its reconnects.
   set compactHistory(bool enabled) => account.compactHistory = enabled;
@@ -297,6 +303,8 @@ class DshRemoteRelayBackend implements RelayBackend, RelayNetworkBackend, RelayP
     }
     final loadCompactHistory = _loadCompactHistory;
     if (loadCompactHistory != null) account.compactHistory = await loadCompactHistory();
+    final loadTransportPolicy = _loadTransportPolicy;
+    if (loadTransportPolicy != null) account.transportPolicy = await loadTransportPolicy();
     return account.connectHost(
       target,
       muxOptions: _muxOptions,
@@ -491,6 +499,7 @@ class DshRemoteRelayBackend implements RelayBackend, RelayNetworkBackend, RelayP
       'PEER_IDENTITY_MISMATCH' => e(HostLinkErrorKind.hostKeyMismatch, appL10n.remoteErrIdentityKeyChanged),
       'HOST_NOT_TRUSTED' => e(HostLinkErrorKind.hostKeyUnverified, appL10n.remoteErrIdentityUnconfirmed),
       'CONNECTION_REPLACED' => e(HostLinkErrorKind.other, appL10n.remoteErrConnectionReplaced),
+      'DIRECT_UNAVAILABLE' => e(HostLinkErrorKind.unavailable, appL10n.remoteRouteDirectFailed, retryable: false),
       'HISTORY_MODE_CHANGED' => e(HostLinkErrorKind.other, appL10n.remoteErrHistoryModeChanged, retryable: false),
       'CONNECTION_REJECTED' => e(HostLinkErrorKind.other, appL10n.remoteErrHostRejected),
       'MEMBERSHIP_REQUIRED' => e(HostLinkErrorKind.other, appL10n.remoteErrHostNotOwned),

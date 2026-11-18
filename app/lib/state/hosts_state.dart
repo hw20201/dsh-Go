@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show Platform;
 
+import 'package:dsh_remote/dsh_remote.dart' show RemoteTransportPolicy;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -407,6 +408,46 @@ final remoteCompactHistoryProvider = NotifierProvider<RemoteCompactHistoryContro
   RemoteCompactHistoryController.new,
 );
 
+/// Preferred transport for DSH Remote hosts. A change affects the next connection,
+/// never an active stream; an explicit reconnect can apply it immediately.
+class RemoteTransportPolicyController extends Notifier<RemoteTransportPolicy> {
+  static const prefsKey = 'remote_transport_policy';
+  late Future<void> _loaded;
+
+  @override
+  RemoteTransportPolicy build() {
+    _loaded = _load();
+    return RemoteTransportPolicy.automatic;
+  }
+
+  Future<void> _load() async {
+    try {
+      final stored = (await SharedPreferences.getInstance()).getString(prefsKey);
+      if (!ref.mounted) return;
+      for (final policy in RemoteTransportPolicy.values) {
+        if (policy.name == stored) {
+          state = policy;
+          return;
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> get ready => _loaded;
+
+  Future<void> set(RemoteTransportPolicy policy) async {
+    await _loaded;
+    if (!ref.mounted) return;
+    state = policy;
+    try {
+      await (await SharedPreferences.getInstance()).setString(prefsKey, policy.name);
+    } catch (_) {}
+  }
+}
+
+final remoteTransportPolicyProvider =
+    NotifierProvider<RemoteTransportPolicyController, RemoteTransportPolicy>(RemoteTransportPolicyController.new);
+
 /// Which host the chat, session list and new chats use. Persisted.
 class ActiveHostController extends Notifier<HostRef> {
   static const prefsKey = 'active_host';
@@ -573,6 +614,7 @@ final relayServerProvider = NotifierProvider<RelayServerController, String?>(Rel
 /// override with a fake; [UnavailableRelayBackend] turns the native relay off.
 final relayBackendProvider = Provider<RelayBackend>((ref) {
   final history = ref.read(remoteCompactHistoryProvider.notifier);
+  final policy = ref.read(remoteTransportPolicyProvider.notifier);
   final backend = DshRemoteRelayBackend(
     secrets: ref.watch(secretStoreProvider),
     serverUrl: ref.watch(relayServerProvider),
@@ -584,12 +626,23 @@ final relayBackendProvider = Provider<RelayBackend>((ref) {
       await history.ready;
       return ref.read(remoteCompactHistoryProvider);
     },
+    loadTransportPolicy: () async {
+      await policy.ready;
+      return ref.read(remoteTransportPolicyProvider);
+    },
   );
   ref.listen<bool>(
     remoteCompactHistoryProvider,
     (_, enabled) => backend.compactHistory = enabled,
     fireImmediately: true,
   );
+  ref.listen<RemoteTransportPolicy>(
+    remoteTransportPolicyProvider,
+    (_, selected) => backend.transportPolicy = selected,
+    fireImmediately: true,
+  );
+  // Load the persisted selection before opening a connection. The listener
+  // applies a later load or user choice without replacing the live backend.
   // The old default-off preference no longer controls automatic transport selection.
   unawaited(
     SharedPreferences.getInstance().then((prefs) => prefs.remove('remote_direct_p2p')).catchError((_) => false),

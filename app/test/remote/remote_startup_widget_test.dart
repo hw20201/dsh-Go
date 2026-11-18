@@ -45,10 +45,15 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
     final c = ProviderScope.containerOf(tester.element(find.byType(MaterialApp)));
+    await tester.scrollUntilVisible(find.text('其他方式'), 300, scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.text('其他方式'));
+    await tester.pump();
     final tile = find.byKey(const ValueKey('remote-auto-connect'));
-    await tester.scrollUntilVisible(tile, 300);
+    await tester.scrollUntilVisible(tile, 300, scrollable: find.byType(Scrollable).first);
     final toggle = find.descendant(of: tile, matching: find.byType(Switch));
     expect(tester.widget<Switch>(toggle).value, isTrue);
+    await tester.ensureVisible(toggle);
+    await tester.pump();
     await tester.tap(toggle);
     await tester.pump();
     expect(tester.widget<Switch>(toggle).value, isFalse);

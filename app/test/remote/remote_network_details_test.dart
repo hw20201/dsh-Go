@@ -12,6 +12,7 @@ import 'package:dsh_app/ui/remote/remote_screen.dart';
 import 'package:dsh_app/ui/settings/settings_widgets.dart';
 import 'package:dsh_client/dsh_client.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -27,6 +28,7 @@ class _InspectableLink extends HostLink implements NetworkInspectableHostLink {
   HostLinkStatus status;
   final changes = StreamController<HostLinkStatus>.broadcast(sync: true);
   int inspections = 0;
+  int closes = 0;
   Future<RemoteNetworkStatus?> Function()? inspect;
 
   void emit(HostLinkStatus next) {
@@ -57,10 +59,30 @@ class _InspectableLink extends HostLink implements NetworkInspectableHostLink {
   @override
   void retry() {}
   @override
-  Future<void> close() async {}
+  Future<void> close() async {
+    closes++;
+  }
 }
 
 void main() {
+  test('host status cannot miss a ready transition during the first snapshot', () async {
+    const host = HostRef.relay('mac');
+    final link = _InspectableLink(const HostLinkStatus(HostLinkPhase.connecting, step: HostLinkStep.connect));
+    final container = ProviderContainer(overrides: [hostLinkProvider.overrideWith((ref, _) => link)]);
+    addTearDown(container.dispose);
+    final phases = <HostLinkPhase>[];
+    final sub = container.listen(hostLinkStatusProvider(host), (_, next) {
+      final phase = next.value?.phase;
+      if (phase == null) return;
+      phases.add(phase);
+      if (phase == HostLinkPhase.connecting) link.emit(const HostLinkStatus(HostLinkPhase.connected));
+    }, fireImmediately: true);
+    addTearDown(sub.close);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(phases, contains(HostLinkPhase.connected));
+    expect(container.read(hostLinkStatusProvider(host)).value?.isConnected, isTrue);
+  });
+
   setUp(() {
     AppLocale.use(AppLocale.zhCN);
     SharedPreferences.setMockInitialValues({ActiveHostController.prefsKey: _host.encode()});
@@ -71,7 +93,23 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
   }
 
-  Future<void> pump(WidgetTester tester, _InspectableLink link, {bool page = false, String? os}) async {
+  Future<void> reveal(WidgetTester tester, Finder target) async {
+    await tester.scrollUntilVisible(target, 220, scrollable: find.byType(Scrollable).first);
+  }
+
+  Future<void> openOtherMethods(WidgetTester tester) async {
+    await reveal(tester, find.text('其他方式'));
+    await tester.tap(find.text('其他方式'));
+    await frames(tester);
+  }
+
+  Future<void> pump(
+    WidgetTester tester,
+    _InspectableLink link, {
+    bool page = false,
+    String? os,
+    HostLink Function(Ref, HostRef)? linkFactory,
+  }) async {
     usePhoneSurface(tester);
     addTearDown(link.changes.close);
     await tester.pumpWidget(
@@ -82,7 +120,7 @@ void main() {
           secretStoreProvider.overrideWithValue(MemorySecretStore()),
           networkKicksProvider.overrideWithValue(const Stream.empty()),
           relayBackendProvider.overrideWithValue(FakeRelayBackend(user: sampleRelayUser)),
-          hostLinkProvider.overrideWith((ref, host) => link),
+          hostLinkProvider.overrideWith((ref, host) => linkFactory?.call(ref, host) ?? link),
           hostNameProvider.overrideWith((ref, host) => 'Workstation'),
           if (os != null) operatingSystemProvider.overrideWithValue(os),
           localRuntimeProvider.overrideWith(
@@ -99,15 +137,70 @@ void main() {
     expect(find.byKey(const ValueKey('remote-direct')), findsNothing);
     expect(SettingsIndex.spot('remote-direct'), isNull);
     expect(SettingsIndex.spot('remote-auto-connect'), isNotNull);
+    await openOtherMethods(tester);
     final startup = find.byKey(const ValueKey('remote-auto-connect'));
-    await tester.scrollUntilVisible(startup, 300);
+    await reveal(tester, startup);
     expect(startup, findsOneWidget);
+  });
+
+  testWidgets('route preference changes and persists without reconnecting the current link', (tester) async {
+    final link = _InspectableLink(const HostLinkStatus(HostLinkPhase.connected, path: RelayPath.relay));
+    await pump(tester, link, page: true);
+    await reveal(tester, find.text('连接路径').last);
+    await tester.tap(find.text('连接路径').last);
+    await frames(tester);
+    await tester.tap(find.text('仅 Relay 中继').last);
+    await frames(tester);
+    expect(link.status.isConnected, isTrue);
+    expect(link.inspections, 0);
+    expect((await SharedPreferences.getInstance()).getString(RemoteTransportPolicyController.prefsKey), 'relayOnly');
+    expect(find.text('按新路径重新连接'), findsOneWidget);
+  });
+
+  testWidgets('reconnect asks for confirmation and replaces only the active host link', (tester) async {
+    final first = _InspectableLink(const HostLinkStatus(HostLinkPhase.connected, path: RelayPath.relay));
+    final second = _InspectableLink(const HostLinkStatus(HostLinkPhase.connected, path: RelayPath.lan));
+    var builds = 0;
+    addTearDown(second.changes.close);
+    await pump(tester, first, page: true, linkFactory: (ref, host) {
+      final current = ++builds == 1 ? first : second;
+      ref.onDispose(() => unawaited(current.close()));
+      return current;
+    });
+    await reveal(tester, find.text('按新路径重新连接'));
+    await tester.ensureVisible(find.text('按新路径重新连接'));
+    await frames(tester);
+    await tester.tap(find.text('按新路径重新连接'));
+    await frames(tester);
+    expect(first.closes, 0);
+    await tester.tap(find.text('取消'));
+    await frames(tester);
+    expect(builds, 1);
+    await tester.ensureVisible(find.text('按新路径重新连接'));
+    await frames(tester);
+    await tester.tap(find.text('按新路径重新连接'));
+    await frames(tester);
+    await tester.tap(find.widgetWithText(FilledButton, '按新路径重新连接'));
+    await frames(tester);
+    expect(builds, 2);
+    expect(first.closes, 1);
+  });
+
+  testWidgets('restores persisted route preference', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      ActiveHostController.prefsKey: _host.encode(),
+      RemoteTransportPolicyController.prefsKey: 'relayOnly',
+    });
+    await pump(tester, _InspectableLink(HostLinkStatus.idle), page: true);
+    await reveal(tester, find.text('连接路径').first);
+    expect(find.text('仅 Relay 中继'), findsOneWidget);
   });
 
   testWidgets('compact history is an opt-in searchable preference with delayed application explained', (tester) async {
     await pump(tester, _InspectableLink(HostLinkStatus.idle), page: true);
+    await openOtherMethods(tester);
     final compact = find.byKey(const ValueKey('remote-compact-history'));
-    await tester.scrollUntilVisible(compact, 300);
+    await reveal(tester, compact);
     expect(SettingsIndex.spot('remote-compact-history'), isNotNull);
     expect(tester.widget<SettingsSwitchTile>(compact).value, isFalse);
     expect(find.textContaining('切换主机或重启 App 后生效'), findsOneWidget);
@@ -241,7 +334,8 @@ void main() {
 
     testWidgets('on HarmonyOS: the relay is simply how this version connects', (tester) async {
       await pump(tester, relayOnly(), os: 'ohos');
-      expect(find.textContaining(zh.harmonyNetworkRelayOnly), findsOneWidget);
+      expect(find.textContaining(zh.remoteRouteHint), findsOneWidget);
+      expect(find.text(zh.remoteRouteAutomatic), findsOneWidget);
       expect(find.text(zh.harmonyNetworkFallbackRelayOnly), findsOneWidget);
       expect(find.textContaining('LAN → P2P'), findsNothing);
       expect(find.text(zh.remoteNetworkFallbackWebrtcUnavailable), findsNothing);
@@ -249,7 +343,8 @@ void main() {
 
     testWidgets('on Android: the order it tries, and the device at fault', (tester) async {
       await pump(tester, relayOnly(), os: 'android');
-      expect(find.textContaining(zh.remoteNetworkAutomatic), findsOneWidget);
+      expect(find.textContaining(zh.remoteRouteHint), findsOneWidget);
+      expect(find.text(zh.remoteRouteAutomatic), findsOneWidget);
       expect(find.text(zh.remoteNetworkFallbackWebrtcUnavailable), findsOneWidget);
     });
   });

@@ -116,7 +116,7 @@ No network setup, end-to-end encrypted. Good for computers on another network.
 
 When the server supports it, the remote hosts page shows **Pair a computer by scanning**: sign in to DeepSeek in the app, tap **Scan** to open the system scanner, scan the code shown by the computer’s Remote plugin, check the computer fingerprint, then enter the verification code as prompted. The scanner is the system’s own page and uses the camera itself, so DSH Go asks for no camera permission; if the code is in a screenshot, pick it from photos inside that page. You can also copy the pairing link and tap **Paste pairing link**. If the system scanner can't open, the app tells you to paste the link instead.
 
-This version goes through the relay, end-to-end encrypted the whole way, not over LAN, P2P or TURN. Tap the route label on the connection card or beside a Host to see the actual route, connection time and available round-trip latency. Unmeasured values are not shown as zero.
+The HarmonyOS version has no WebRTC and uses the end-to-end encrypted Relay, not LAN, P2P or TURN. Under DSH Remote's **Connection route** on the remote hosts page, Automatic and Relay only are available; **Direct only (LAN / P2P)** is unavailable. The choice affects only DSH Remote, not separate SSH or direct DSH address hosts. It takes effect on the next connection without closing the current one; confirming **Reconnect using new route** may interrupt ongoing chats or operations. Network details distinguish the actual current path from the saved choice for the next connection and show connection time and available round-trip latency. Unmeasured values are not shown as zero.
 
 <!-- nav: commonSettings,commonRemoteHost,remoteCompactHistory -->
 `Settings › Remote host › Compact history`

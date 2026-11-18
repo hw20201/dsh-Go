@@ -644,6 +644,90 @@ void main() {
       expect(fallbacks, isEmpty);
     });
 
+    test('relay-only policy avoids WebRTC even when a connector exists', () async {
+      account.transportPolicy = RemoteTransportPolicy.relayOnly;
+      final client = await connect();
+      expect(client.remoteCarrier!.state!.transport, 'relay');
+      expect(network.clients, isEmpty);
+      expect(server.turnRequests, isEmpty);
+      expect(host.rtcOffers, isEmpty);
+      final request = clientFrames().singleWhere((f) => f['type'] == 'connect.request');
+      expect((request['payload']! as Map)['preferredTransports'], ['relay']);
+    });
+
+    test('direct-only success offers LAN/P2P and never carries ciphertext on Relay', () async {
+      account.transportPolicy = RemoteTransportPolicy.directOnly;
+      final client = await connect();
+      expect(client.remoteCarrier!.state!.transport, 'lan');
+      expect(server.relayFrames, 0);
+      expect(server.controlRelayFrames, 0);
+      final request = clientFrames().singleWhere((f) => f['type'] == 'connect.request');
+      expect((request['payload']! as Map)['preferredTransports'], ['lan', 'p2p', 'relay']);
+      expect(network.iceServers.single.every((s) => s.urls.every((url) => !url.startsWith('turn:'))), isTrue);
+    });
+
+    test('changing route policy takes effect on the next connection without closing the live one', () async {
+      final first = await connect();
+      expect(first.remoteCarrier!.state!.transport, 'lan');
+      account.transportPolicy = RemoteTransportPolicy.relayOnly;
+      expect(first.remoteCarrier!.state!.transport, 'lan', reason: 'saving a preference must not disrupt the active link');
+      final second = await connect();
+      expect(second.remoteCarrier!.state!.transport, 'relay');
+      expect(network.clients, hasLength(1), reason: 'the second connection does not negotiate WebRTC');
+      expect((clientFrames().lastWhere((f) => f['type'] == 'connect.request')['payload']! as Map)['preferredTransports'], [
+        'relay',
+      ]);
+    });
+
+    test('direct-only does not fall back to Relay when an established DataChannel closes', () async {
+      account.transportPolicy = RemoteTransportPolicy.directOnly;
+      final client = await connect();
+      expect(await client.listSessions(), isEmpty);
+      final first = host.handshakes.single;
+      network.outcome = FakeRtcOutcome.fail;
+      host.closeRtc();
+      await _eventually(() => client.remoteCarrier!.state?.phase == RemoteConnectionPhase.failed);
+      expect(host.handshakes, [first], reason: 'a failed strict reconnect must not start Noise on Relay');
+      expect(server.relayFrames, 0);
+      expect(server.controlRelayFrames, 0);
+      expect(client.remoteCarrier!.state!.failure?.code, 'DIRECT_UNAVAILABLE');
+    });
+
+    test('direct-only rejects a Host that only negotiates TURN', () async {
+      account.transportPolicy = RemoteTransportPolicy.directOnly;
+      server.webrtcTransports = {'transport.turn'};
+      await expectLater(
+        connect(),
+        throwsA(isA<RemoteConnectException>().having((e) => e.failure.code, 'code', 'DIRECT_UNAVAILABLE')),
+      );
+      expect(types().where((t) => t == 'connect.request'), hasLength(1));
+      expect(network.clients, isEmpty);
+      expect(host.handshakes, isEmpty);
+    });
+
+    test('direct-only ICE failure reports a terminal code with no fallback connection', () async {
+      account.transportPolicy = RemoteTransportPolicy.directOnly;
+      network.outcome = FakeRtcOutcome.fail;
+      await expectLater(
+        connect(),
+        throwsA(isA<RemoteConnectException>().having((e) => e.failure.code, 'code', 'DIRECT_UNAVAILABLE')),
+      );
+      expect(types().where((t) => t == 'connect.request'), hasLength(1));
+      expect(server.relayFrames, 0);
+      expect(host.handshakes, isEmpty);
+      expect(network.clients.single.closed, isTrue);
+    });
+
+    test('direct-only without a connector fails without opening a control socket', () async {
+      account.transportPolicy = RemoteTransportPolicy.directOnly;
+      account.peerConnector = null;
+      await expectLater(
+        connect(),
+        throwsA(isA<RemoteConnectException>().having((e) => e.failure.code, 'code', 'DIRECT_UNAVAILABLE')),
+      );
+      expect(types(), isEmpty);
+    });
+
     test('without a peer connector the client is Relay-only exactly as before', () async {
       account.peerConnector = null;
       final client = await connect();

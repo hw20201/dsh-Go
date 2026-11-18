@@ -1,11 +1,13 @@
 import 'dart:async';
 
+import 'package:dsh_remote/dsh_remote.dart' show RemoteTransportPolicy;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/l10n.dart';
 import '../../remote/relay/relay_backend.dart';
+import '../../state/android_features.dart';
 import '../../state/app_info.dart';
 import '../../state/connection_state.dart';
 import '../../state/hosts_state.dart';
@@ -126,6 +128,7 @@ class RemoteScreen extends ConsumerWidget {
           ],
         ),
         _RelaySection(onUse: (h) => _use(context, ref, h)),
+        const _RemoteRouteSection(),
         SettingsSection(
           title: l10n.remoteSshHosts,
           footer: Text(l10n.remoteSshRequirements),
@@ -177,6 +180,100 @@ class RemoteScreen extends ConsumerWidget {
             ),
           ],
         ),
+      ],
+    );
+  }
+}
+
+class _RemoteRouteSection extends ConsumerWidget {
+  const _RemoteRouteSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final policy = ref.watch(remoteTransportPolicyProvider);
+    final active = ref.watch(activeHostProvider);
+    final connected = active.kind == HostKind.relay &&
+        (ref.watch(hostLinkStatusProvider(active)).value?.isConnected ?? false);
+    final directAvailable = ref.watch(webRtcAvailableProvider);
+    String label(RemoteTransportPolicy value) => switch (value) {
+      RemoteTransportPolicy.automatic => l10n.remoteRouteAutomatic,
+      RemoteTransportPolicy.relayOnly => l10n.remoteRouteRelayOnly,
+      RemoteTransportPolicy.directOnly => l10n.remoteRouteDirectOnly,
+    };
+
+    return SettingsSection(
+      title: 'DSH Remote · ${l10n.remoteRouteMode}',
+      footer: Text(l10n.remoteRouteHint),
+      collapsible: true,
+      children: [
+        SettingsTile(
+          icon: AppIcons.link,
+          tinted: false,
+          title: l10n.remoteRouteMode,
+          subtitle: switch (policy) {
+            RemoteTransportPolicy.automatic => l10n.remoteNetworkAutomatic,
+            RemoteTransportPolicy.relayOnly => l10n.remoteRouteRelayHelp,
+            RemoteTransportPolicy.directOnly => l10n.remoteRouteDirectHelp,
+          },
+          value: Text(label(policy)),
+          onTap: () async {
+            final chosen = await showAppDialog<RemoteTransportPolicy>(
+              context: context,
+              builder: (dialog) => SimpleDialog(
+                title: Text(l10n.remoteRouteMode),
+                children: [
+                  for (final value in RemoteTransportPolicy.values)
+                    SimpleDialogOption(
+                      onPressed: value == RemoteTransportPolicy.directOnly && !directAvailable
+                          ? null
+                          : () => Navigator.pop(dialog, value),
+                      child: Row(
+                        children: [
+                          Icon(value == policy ? Icons.radio_button_checked : Icons.radio_button_unchecked),
+                          const SizedBox(width: 12),
+                          Expanded(child: Text(label(value))),
+                        ],
+                      ),
+                    ),
+                  if (!directAvailable)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                      child: Text(l10n.remoteRouteDirectUnavailable),
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                    child: Text(l10n.remoteRouteDirectHelp),
+                  ),
+                ],
+              ),
+            );
+            if (chosen != null) unawaited(ref.read(remoteTransportPolicyProvider.notifier).set(chosen));
+          },
+        ),
+        if (connected)
+          SettingsTile(
+            icon: AppIcons.refresh,
+            tinted: false,
+            title: l10n.remoteRouteReconnect,
+            subtitle: l10n.remoteRouteReconnectHint,
+            onTap: () async {
+              final ok = await showAppDialog<bool>(
+                context: context,
+                builder: (dialog) => AlertDialog(
+                  title: Text(l10n.remoteRouteReconnectTitle),
+                  content: Text(l10n.remoteRouteReconnectHint),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(dialog, false), child: Text(l10n.commonCancel)),
+                    FilledButton(onPressed: () => Navigator.pop(dialog, true), child: Text(l10n.remoteRouteReconnect)),
+                  ],
+                ),
+              );
+              if (ok == true && context.mounted && ref.read(activeHostProvider) == active) {
+                ref.invalidate(hostLinkProvider(active));
+              }
+            },
+          ),
       ],
     );
   }

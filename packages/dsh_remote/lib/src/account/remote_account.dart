@@ -364,6 +364,10 @@ class _Pin {
 /// One Server connection per device: connecting to another Host closes the
 /// previous remote client (the Server allows one Host connection per
 /// client device).
+/// Selects the Remote data plane; the Server control socket is still required
+/// for authorization and WebRTC signaling in every mode.
+enum RemoteTransportPolicy { automatic, relayOnly, directOnly }
+
 class RemoteAccount {
   RemoteAccount({
     required SecretStore secrets,
@@ -377,6 +381,7 @@ class RemoteAccount {
     this.pairingPollInterval = const Duration(milliseconds: 2500),
     this.controlTracer,
     this.peerConnector,
+    this.transportPolicy = RemoteTransportPolicy.automatic,
     this.preferredTransports,
     this.onDirectFallback,
     this.compactHistory = false,
@@ -409,6 +414,10 @@ class RemoteAccount {
   /// connection on the Relay. Read at each (re)connect, so a change applies
   /// from the next connection on.
   RemotePeerConnector? peerConnector;
+
+  /// Applied on the next (re)connect without closing an active session.
+  /// Direct-only means LAN/P2P DataChannel only, never TURN or Relay ciphertext.
+  RemoteTransportPolicy transportPolicy;
 
   /// Optional native network hint. Actual selection still requires a working
   /// ICE pair. Exceptions or a stalled hint retain automatic defaults.
@@ -1429,7 +1438,65 @@ class RemoteAccount {
   /// after the final data plane is chosen. Recent failures skip the bad path
   /// for 45 seconds; a changed native network hint clears that cooldown.
   Future<_TransportSelection> _connectTransport(String token, String hostId, bool Function() isCancelled) async {
+    final policy = transportPolicy;
+    if (policy == RemoteTransportPolicy.relayOnly) {
+      return _TransportSelection(await _connectRelay(token, hostId, isCancelled: isCancelled), null);
+    }
     final connector = peerConnector;
+    if (policy == RemoteTransportPolicy.directOnly) {
+      if (connector == null) {
+        throw const RemoteTransportException(
+          'DIRECT_UNAVAILABLE',
+          'WebRTC is unavailable for direct-only mode.',
+          retryable: false,
+        );
+      }
+      var preferred = const [RemoteTransportMode.lan, RemoteTransportMode.p2p];
+      try {
+        final hint = preferredTransports;
+        if (hint != null) {
+          final routes = await hint().timeout(const Duration(milliseconds: 500));
+          preferred = [
+            for (final route in routes)
+              if (route == RemoteTransportMode.lan || route == RemoteTransportMode.p2p) route,
+          ];
+        }
+      } on Object {
+        // Native connectivity can be unavailable during startup.
+      }
+      if (preferred.isEmpty) {
+        throw const RemoteTransportException(
+          'DIRECT_UNAVAILABLE',
+          'No direct transport is available on this network.',
+          retryable: false,
+        );
+      }
+      final control = await _connectRelay(token, hostId, direct: true, preferred: preferred, isCancelled: isCancelled);
+      if (!control.directTransports.any((mode) => mode == 'lan' || mode == 'p2p')) {
+        await control.close();
+        throw const RemoteTransportException(
+          'DIRECT_UNAVAILABLE',
+          'The Host cannot negotiate a direct transport.',
+          retryable: false,
+        );
+      }
+      try {
+        final rtc = await WebRtcTransport.negotiate(
+          control: control,
+          connector: connector,
+          iceServers: (id) => api.turnCredentials(token, id),
+          timeout: directTimeout,
+          iceServersTimeout: iceServersTimeout,
+        );
+        return _TransportSelection(rtc, null);
+      } on WebRtcUnavailable {
+        throw const RemoteTransportException(
+          'DIRECT_UNAVAILABLE',
+          'The direct connection could not be established.',
+          retryable: false,
+        );
+      }
+    }
     if (connector == null) {
       return _TransportSelection(
         await _connectRelay(token, hostId, isCancelled: isCancelled),

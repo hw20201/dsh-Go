@@ -30608,6 +30608,84 @@ abstract class L10n {
   /// **'自动依次尝试 LAN → P2P → TURN → Relay，连接全程端到端加密。'**
   String get remoteNetworkAutomatic;
 
+  /// No description provided for @remoteRouteMode.
+  ///
+  /// In zh, this message translates to:
+  /// **'连接路径'**
+  String get remoteRouteMode;
+
+  /// No description provided for @remoteRouteAutomatic.
+  ///
+  /// In zh, this message translates to:
+  /// **'自动（推荐）'**
+  String get remoteRouteAutomatic;
+
+  /// No description provided for @remoteRouteRelayOnly.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅 Relay 中继'**
+  String get remoteRouteRelayOnly;
+
+  /// No description provided for @remoteRouteDirectOnly.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅直连（LAN / P2P）'**
+  String get remoteRouteDirectOnly;
+
+  /// No description provided for @remoteRouteHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'只影响 DSH Remote 主机，已建立的连接不受影响；下次连接时生效。'**
+  String get remoteRouteHint;
+
+  /// No description provided for @remoteRouteRelayHelp.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅使用 Relay 中继，不尝试 LAN、P2P 或 TURN。'**
+  String get remoteRouteRelayHelp;
+
+  /// No description provided for @remoteRouteDirectHelp.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅尝试 LAN 和 P2P 数据通道（仍通过 Relay 协商连接）；不可用时失败，不会转用 TURN 或 Relay 数据通道。'**
+  String get remoteRouteDirectHelp;
+
+  /// No description provided for @remoteRouteSavedMode.
+  ///
+  /// In zh, this message translates to:
+  /// **'下次连接使用'**
+  String get remoteRouteSavedMode;
+
+  /// No description provided for @remoteRouteDirectUnavailable.
+  ///
+  /// In zh, this message translates to:
+  /// **'此设备不支持 WebRTC，无法使用仅直连。'**
+  String get remoteRouteDirectUnavailable;
+
+  /// No description provided for @remoteRouteDirectFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅直连路径不可用。可切换为自动或仅 Relay 中继后重试。'**
+  String get remoteRouteDirectFailed;
+
+  /// No description provided for @remoteRouteReconnect.
+  ///
+  /// In zh, this message translates to:
+  /// **'按新路径重新连接'**
+  String get remoteRouteReconnect;
+
+  /// No description provided for @remoteRouteReconnectTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'重新连接 DSH Remote？'**
+  String get remoteRouteReconnectTitle;
+
+  /// No description provided for @remoteRouteReconnectHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前连接会断开，正在进行的对话或操作可能被中断。'**
+  String get remoteRouteReconnectHint;
+
   /// No description provided for @remoteNetworkCurrentPath.
   ///
   /// In zh, this message translates to:

@@ -1,3 +1,4 @@
+import 'package:dsh_remote/dsh_remote.dart' show RemoteTransportPolicy;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -65,6 +66,12 @@ class _RemoteNetworkDetailsSheetState extends ConsumerState<RemoteNetworkDetails
     final relay = widget.host.kind == HostKind.relay;
     // No WebRTC there (hostsProvider's peer connector): the relay isn't a fallback.
     final ohos = ref.watch(operatingSystemProvider) == 'ohos';
+    final policy = ref.watch(remoteTransportPolicyProvider);
+    final policyLabel = switch (policy) {
+      RemoteTransportPolicy.automatic => l10n.remoteRouteAutomatic,
+      RemoteTransportPolicy.relayOnly => l10n.remoteRouteRelayOnly,
+      RemoteTransportPolicy.directOnly => l10n.remoteRouteDirectOnly,
+    };
     final connected = status.isConnected;
     final network = connected && relay ? status.network : null;
     final path = connected && relay ? network?.path ?? status.path : null;
@@ -92,7 +99,7 @@ class _RemoteNetworkDetailsSheetState extends ConsumerState<RemoteNetworkDetails
               padding: const EdgeInsets.fromLTRB(kSheetGutter, 0, kSheetGutter, 12),
               child: Text(
                 relay
-                    ? '${ohos ? l10n.harmonyNetworkRelayOnly : l10n.remoteNetworkAutomatic}\n${l10n.remoteNetworkSnapshotHint}'
+                    ? '${l10n.remoteNetworkSnapshotHint}\n${l10n.remoteRouteHint}'
                     : l10n.hostDetailsSshNetworkHint,
                 style: TextStyle(color: colors.textTertiary),
               ),
@@ -102,6 +109,7 @@ class _RemoteNetworkDetailsSheetState extends ConsumerState<RemoteNetworkDetails
                 _NetworkValue(label: l10n.remoteHost, value: name),
                 _NetworkValue(label: l10n.hostDetailsConnectionType, value: relay ? 'DSH Remote' : 'SSH'),
                 _NetworkValue(label: l10n.commonStatus, value: status.summary),
+                if (relay) _NetworkValue(label: l10n.remoteRouteSavedMode, value: policyLabel),
                 _NetworkValue(
                   label: l10n.remoteNetworkCurrentPath,
                   value: connected && widget.host.kind == HostKind.ssh

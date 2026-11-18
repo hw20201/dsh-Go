@@ -16689,6 +16689,45 @@ class L10nZh extends L10n {
   String get remoteNetworkAutomatic => '自动依次尝试 LAN → P2P → TURN → Relay，连接全程端到端加密。';
 
   @override
+  String get remoteRouteMode => '连接路径';
+
+  @override
+  String get remoteRouteAutomatic => '自动（推荐）';
+
+  @override
+  String get remoteRouteRelayOnly => '仅 Relay 中继';
+
+  @override
+  String get remoteRouteDirectOnly => '仅直连（LAN / P2P）';
+
+  @override
+  String get remoteRouteHint => '只影响 DSH Remote 主机，已建立的连接不受影响；下次连接时生效。';
+
+  @override
+  String get remoteRouteRelayHelp => '仅使用 Relay 中继，不尝试 LAN、P2P 或 TURN。';
+
+  @override
+  String get remoteRouteDirectHelp => '仅尝试 LAN 和 P2P 数据通道（仍通过 Relay 协商连接）；不可用时失败，不会转用 TURN 或 Relay 数据通道。';
+
+  @override
+  String get remoteRouteSavedMode => '下次连接使用';
+
+  @override
+  String get remoteRouteDirectUnavailable => '此设备不支持 WebRTC，无法使用仅直连。';
+
+  @override
+  String get remoteRouteDirectFailed => '仅直连路径不可用。可切换为自动或仅 Relay 中继后重试。';
+
+  @override
+  String get remoteRouteReconnect => '按新路径重新连接';
+
+  @override
+  String get remoteRouteReconnectTitle => '重新连接 DSH Remote？';
+
+  @override
+  String get remoteRouteReconnectHint => '当前连接会断开，正在进行的对话或操作可能被中断。';
+
+  @override
   String get remoteNetworkCurrentPath => '当前路径';
 
   @override

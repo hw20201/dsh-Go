@@ -31,6 +31,7 @@ export 'src/account/remote_account.dart'
         RemoteLogin,
         RemotePairedHost,
         RemotePairing,
+        RemoteTransportPolicy,
         RemoteUser;
 export 'src/account/secret_store.dart';
 export 'src/carrier/tunnel_carrier.dart';

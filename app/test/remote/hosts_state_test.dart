@@ -363,6 +363,18 @@ void main() {
       expect(c.read(activeConnectionProvider), const AsyncData<HostConnection?>(null));
     });
 
+    test('a host status observer started before fast remote open sees the ready client', () async {
+      final relay = FakeRelayBackend(user: sampleRelayUser);
+      final c = container(relay: relay);
+      const host = HostRef.relay('mac');
+      final status = c.listen(hostLinkStatusProvider(host), (_, _) {}, fireImmediately: true);
+      addTearDown(status.close);
+      final connection = c.listen(remoteConnectionProvider(host), (_, _) {}, fireImmediately: true);
+      addTearDown(connection.close);
+      await until(c, remoteConnectionProvider(host), (s) => s.value != null, what: '可用的远程连接');
+      await until(c, hostLinkStatusProvider(host), (s) => s.value?.isConnected == true, what: '远程主机状态更新');
+    });
+
     test('relay host → connects through the backend', () async {
       final relay = FakeRelayBackend(user: sampleRelayUser);
       final c = container(relay: relay);
