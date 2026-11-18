@@ -19,6 +19,10 @@ val hasWholeReleaseKey = listOf("storeFile", "keyAlias").all { !keyProps.getProp
     listOf("storePassword", "keyPassword").all { !keyProps.getProperty(it).isNullOrEmpty() } &&
     file(keyProps.getProperty("storeFile")).exists()
 
+if (providers.gradleProperty("dshRequireReleaseSigning").orNull == "true") {
+    check(hasWholeReleaseKey) { "This release build requires the configured DSH release keystore; refusing debug signing." }
+}
+
 // (year - 2026) * 10^8 + MMDDhhmm at UTC+8. tooling/build-apk.sh passes it as
 // --build-number; this covers builds that skip the script (flutter run, the
 // IDE), where pubspec's `+1` placeholder would be a downgrade and make
@@ -101,8 +105,10 @@ android {
             if (hasWholeReleaseKey) signingConfig = signingConfigs.getByName("release")
         }
         release {
-            // Use the release key when configured; local builds without key.properties fall back to debug.
+            // Local builds may fall back to debug; the CI release workflow sets
+            // dshRequireReleaseSigning and fails before a debug-signed APK can escape.
             signingConfig = signingConfigs.getByName(if (keyProps.isEmpty) "debug" else "release")
+            isMinifyEnabled = true
             // Ours on top of Flutter's: phone control's privileged process and
             // its TLS libraries are reached by class name (see the file).
             proguardFiles("proguard-rules.pro")

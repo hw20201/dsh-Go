@@ -1,7 +1,7 @@
 # Build the Android release APK (R8) and upload it as an artifact.
 # Trigger it manually from the Actions tab (workflow_dispatch).
-# No release keystore is configured, so the APK is debug-signed and
-# cannot upgrade over the official v1.1.0; uninstall the official app first.
+# Requires the repository Actions secrets RELEASE_KEYSTORE_BASE64,
+# RELEASE_STORE_PASSWORD, RELEASE_KEY_PASSWORD and RELEASE_KEY_ALIAS.
 name: Build Android APK (R8)
 
 on:
@@ -18,6 +18,7 @@ permissions:
 env:
   FLUTTER_VERSION: 3.47.7
   TZ: Asia/Shanghai
+  ORG_GRADLE_PROJECT_dshRequireReleaseSigning: 'true'
 
 jobs:
   build-apk:
@@ -40,6 +41,54 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+      - name: Configure release signing key
+        working-directory: app/android
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+        run: |
+          set +x
+          for name in RELEASE_KEYSTORE_BASE64 RELEASE_STORE_PASSWORD RELEASE_KEY_PASSWORD RELEASE_KEY_ALIAS; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error title=Missing release signing secret::$name is not configured for hw20201/dsh-Go."
+              exit 1
+            fi
+          done
+          export RELEASE_STORE_FILE="$RUNNER_TEMP/dsh-go-release.jks"
+          umask 077
+          printf '%s' "$RELEASE_KEYSTORE_BASE64" | base64 --decode > "$RELEASE_STORE_FILE"
+          test -s "$RELEASE_STORE_FILE"
+          keytool -list -keystore "$RELEASE_STORE_FILE" -storepass "$RELEASE_STORE_PASSWORD" -alias "$RELEASE_KEY_ALIAS" >/dev/null
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          def escape(value):
+              result = []
+              for char in value:
+                  if char == '\\':
+                      result.append('\\\\')
+                  elif char == '\n':
+                      result.append('\\n')
+                  elif char == '\r':
+                      result.append('\\r')
+                  elif char in ':=#!':
+                      result.append('\\' + char)
+                  else:
+                      result.append(char)
+              return ''.join(result)
+
+          values = {
+              'storeFile': os.environ['RELEASE_STORE_FILE'],
+              'storePassword': os.environ['RELEASE_STORE_PASSWORD'],
+              'keyAlias': os.environ['RELEASE_KEY_ALIAS'],
+              'keyPassword': os.environ['RELEASE_KEY_PASSWORD'],
+          }
+          Path('key.properties').write_text(''.join(f'{key}={escape(value)}\n' for key, value in values.items()))
+          PY
+          chmod 600 key.properties
       - name: Install dependencies
         working-directory: app
         run: flutter pub get --enforce-lockfile
@@ -51,6 +100,14 @@ jobs:
         run: |
           ls -lh build/app/outputs/flutter-apk/
           sha256sum build/app/outputs/flutter-apk/*.apk
+      - name: Verify R8 mapping and release signature
+        working-directory: app
+        run: |
+          test -s build/app/outputs/mapping/arm64Release/mapping.txt
+          apk=build/app/outputs/flutter-apk/app-arm64-release.apk
+          apksigner=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)
+          test -n "$apksigner"
+          "$apksigner" verify --verbose --print-certs "$apk"
       - name: Upload APKs
         uses: actions/upload-artifact@v4
         with:
