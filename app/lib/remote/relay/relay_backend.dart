@@ -226,12 +226,18 @@ class RelayHostLink implements HostLink, NetworkInspectableHostLink {
     required this.resolveHost,
     Stream<void>? kicks,
     Backoff? backoff,
+    this.onConnected,
   }) : _backoff = backoff ?? Backoff() {
     _kickSub = kicks?.listen((_) => kick());
   }
 
   final RelayBackend backend;
   final String hostId;
+
+  /// Fired (fire-and-forget) after a fresh connect. Used by the App to pull
+  /// the host's direct-connection config on first setup; the callback itself
+  /// decides whether a fetch is needed, so reconnects stay quiet.
+  final Future<void> Function(DshClient client)? onConnected;
 
   /// Looks the host up in the account's (refreshed) list.
   final Future<RelayHost?> Function() resolveHost;
@@ -337,6 +343,10 @@ class RelayHostLink implements HostLink, NetworkInspectableHostLink {
       throw StateError('link closed');
     }
     _client = client;
+    final connected = onConnected;
+    if (connected != null) {
+      unawaited(connected(client).catchError((_) {}));
+    }
     // Ready may have been followed by a loss before this continuation ran.
     if (latestState case (final state, final error)
         when state == RelayConnectionState.reconnecting ||

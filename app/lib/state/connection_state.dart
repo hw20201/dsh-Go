@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:collection';
 
 import 'package:dsh_client/dsh_client.dart';
+import 'package:dsh_remote/dsh_remote.dart' as remote;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/l10n.dart';
@@ -241,6 +242,39 @@ final hostLinkProvider = Provider.autoDispose.family<HostLink?, HostRef>((ref, h
           return null;
         },
         kicks: ref.read(networkKicksProvider),
+        // Pull the host's direct-connection config once, on first setup.
+        // Reconnects stay quiet: once a direct entry exists for this Relay
+        // host, we never ask again here (a token refresh after a DSH
+        // restart is driven by a 401 on the direct path, not by reconnects).
+        onConnected: (client) async {
+          try {
+            if (ref.read(hostsProvider).directByRelayHostId(host.id) != null) return;
+            final rpc = client.remoteCarrier?.session?.rpc;
+            if (rpc == null || rpc.isClosed) return;
+            final result = await rpc.call(
+              'host.direct.config.get.v1',
+              const <String, Object?>{},
+              timeout: const Duration(seconds: 10),
+            );
+            if (result is! Map) return;
+            final url = result['url'];
+            final token = result['token'];
+            if (url is! String || url.isEmpty || token is! String || token.isEmpty) return;
+            final config = DirectHostConfig(
+              id: DirectHostConfig.newId(),
+              name: host.name ?? host.id,
+              baseUri: url,
+              relayHostId: host.id,
+            );
+            await ref.read(hostsProvider.notifier).saveDirect(
+              config,
+              secrets: DirectSecrets(token: token),
+            );
+          } catch (_) {
+            // Best effort: an older plugin (or a host with sync disabled)
+            // simply means no auto-sync; manual direct setup still works.
+          }
+        },
       );
       final statuses = link.statuses.listen((status) {
         if (status.phase == HostLinkPhase.failed && status.error?.kind == HostLinkErrorKind.notLoggedIn) {

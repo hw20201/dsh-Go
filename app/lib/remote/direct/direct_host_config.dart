@@ -5,7 +5,7 @@ import 'dart:math' as math;
 /// in SharedPreferences (no secrets); the launch token and any Basic Auth
 /// password live in the [SecretStore] under [DirectSecrets] keys.
 class DirectHostConfig {
-  const DirectHostConfig({required this.id, required this.name, required this.baseUri, this.basicAuthUser});
+  const DirectHostConfig({required this.id, required this.name, required this.baseUri, this.basicAuthUser, this.relayHostId});
 
   /// Stable id (`direct-<hex>`); also the secret-store namespace.
   final String id;
@@ -21,6 +21,10 @@ class DirectHostConfig {
   /// if any. The password lives in the secret store; null means no Basic Auth.
   final String? basicAuthUser;
 
+  /// The Relay host this direct entry was synced from, if any. Used to avoid
+  /// fetching the same host's direct config on every reconnect.
+  final String? relayHostId;
+
   /// The address as the client dials it (no trailing slash).
   Uri get uri {
     var text = baseUri.trim();
@@ -33,12 +37,13 @@ class DirectHostConfig {
   /// Fields that require a new connection when they change (a rename doesn't).
   String get connectionKey => [uri.toString(), basicAuthUser ?? ''].join('\u0000');
 
-  DirectHostConfig copyWith({String? name, String? baseUri, String? Function()? basicAuthUser}) =>
+  DirectHostConfig copyWith({String? name, String? baseUri, String? Function()? basicAuthUser, String? Function()? relayHostId}) =>
       DirectHostConfig(
         id: id,
         name: name ?? this.name,
         baseUri: baseUri ?? this.baseUri,
         basicAuthUser: basicAuthUser != null ? basicAuthUser() : this.basicAuthUser,
+        relayHostId: relayHostId != null ? relayHostId() : this.relayHostId,
       );
 
   Map<String, Object?> toJson() => {
@@ -46,6 +51,7 @@ class DirectHostConfig {
     'name': name,
     'baseUri': baseUri,
     if (basicAuthUser != null) 'basicAuthUser': basicAuthUser,
+    if (relayHostId != null) 'relayHostId': relayHostId,
   };
 
   static String newId([math.Random? random]) {
@@ -61,11 +67,13 @@ class DirectHostConfig {
     final baseUri = raw['baseUri'];
     if (id is! String || id.isEmpty || name is! String || baseUri is! String || baseUri.isEmpty) return null;
     final basicAuthUser = raw['basicAuthUser'];
+    final relayHostId = raw['relayHostId'];
     return DirectHostConfig(
       id: id,
       name: name,
       baseUri: baseUri,
       basicAuthUser: basicAuthUser is String && basicAuthUser.isNotEmpty ? basicAuthUser : null,
+      relayHostId: relayHostId is String && relayHostId.isNotEmpty ? relayHostId : null,
     );
   }
 }

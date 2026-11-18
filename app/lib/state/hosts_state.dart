@@ -121,6 +121,14 @@ class HostsState {
     }
     return null;
   }
+
+  /// The direct entry synced from a Relay host, if one was saved.
+  DirectHostConfig? directByRelayHostId(String relayHostId) {
+    for (final h in direct) {
+      if (h.relayHostId == relayHostId) return h;
+    }
+    return null;
+  }
 }
 
 /// Saved SSH hosts: configs in SharedPreferences, secrets in [SecretStore].
