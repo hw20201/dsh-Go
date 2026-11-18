@@ -45,7 +45,7 @@ jobs:
         run: flutter pub get --enforce-lockfile
       - name: Build release APK (R8)
         working-directory: app
-        run: flutter build apk --release
+        run: bash ../tooling/build-apk.sh --keep-daemon
       - name: Show APKs and hashes
         working-directory: app
         run: |
