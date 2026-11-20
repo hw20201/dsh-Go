@@ -6,19 +6,16 @@
 import 'dart:async';
 
 import 'package:dsh_app/diagnostics/diagnostics_export.dart';
-import 'package:dsh_app/runtime/runtime_state.dart';
 import 'package:dsh_app/state/android_features.dart';
 import 'package:dsh_app/state/artifacts.dart';
 import 'package:dsh_app/ui/common/list_page_row.dart';
 import 'package:dsh_app/ui/engine/diagnostics_export_card.dart';
-import 'package:dsh_app/ui/safe_mode/engine_failure_card.dart';
 import 'package:dsh_app/ui/theme/app_icons.dart';
 import 'package:dsh_app/ui/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../safe_mode/support.dart' show FakeBridge, failedStatus, lkgUseful;
 import '../shell/golden_harness.dart';
 
 /// Walks through the steps on cue instead of touching files.
@@ -271,33 +268,6 @@ void main() {
     final save = tester.getRect(inSheet(find.byIcon(AppIcons.download)));
     expect(share.center.dx, closeTo(save.center.dx, .5));
     expect(share.center.dx, closeTo(card.left + ListPageRow.horizontal + ListPageRow.glyphSlot / 2, .5));
-  });
-
-  testWidgets('the failure card offers 导出诊断包 next to 查看日志', (tester) async {
-    usePhoneSurface(tester);
-    await tester.pumpWidget(
-      goldenApp(
-        home: const Scaffold(
-          body: SafeArea(
-            child: Padding(padding: EdgeInsets.all(16), child: EngineFailureCard()),
-          ),
-        ),
-        brightness: Brightness.light,
-        overrides: [
-          runtimeBridgeProvider.overrideWithValue(FakeBridge(lkg: lkgUseful)),
-          localRuntimeProvider.overrideWith(() => FakeRuntime(LocalRuntimeState(loaded: true, status: failedStatus()))),
-          diagnosticsExporterProvider.overrideWithValue(_ScriptedExporter()),
-        ],
-      ),
-    );
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
-    expect(find.widgetWithText(TextButton, '查看日志'), findsOneWidget);
-    await tester.tap(find.widgetWithText(TextButton, '导出诊断包'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 600));
-    expect(find.byType(DiagnosticsExportCard), findsOneWidget);
-    expect(find.text('存到「下载」'), findsOneWidget);
   });
 
   goldenBoth(

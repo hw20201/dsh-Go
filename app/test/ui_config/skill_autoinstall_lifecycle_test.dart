@@ -5,7 +5,6 @@ import 'dart:io';
 import 'package:dsh_app/runtime/runtime_bridge.dart';
 import 'package:dsh_app/runtime/runtime_state.dart';
 import 'package:dsh_app/ui_config/ui_config.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -30,13 +29,54 @@ class _Runtime extends LocalRuntimeController {
   void emit(RuntimePhase phase, [String token = 'run-one']) => state = _value(phase, token);
 }
 
+// Model the managed-install boundary explicitly: the remote-only production
+// bridge intentionally has no native runtime (and never calls a MethodChannel).
+class _ManagedSkillRuntimeBridge extends RuntimeBridge {
+  _ManagedSkillRuntimeBridge(this.harness);
+
+  final _Harness harness;
+  final cancelled = <String>{};
+
+  @override
+  Future<ManagedSkillInstallResponse> installManagedSkill({
+    required String requestId,
+    required String expectedRoot,
+    required String expectedToken,
+    required int? expectedGeneration,
+    required String name,
+    required Map<String, String> files,
+  }) async {
+    bool current() {
+      if (harness.disposed || cancelled.contains(requestId)) return false;
+      final status = harness.c.read(localRuntimeProvider).status;
+      return status.phase == RuntimePhase.running &&
+          status.token == expectedToken &&
+          status.managedSkillGeneration == expectedGeneration &&
+          harness.currentRoot.path == expectedRoot;
+    }
+
+    if (!current()) return const ManagedSkillInstallResponse(current: false);
+    // The reference installer performs synchronous, atomic file writes, so the
+    // current check and transaction have no lifecycle interleaving point.
+    final result = await installUiSkill(Directory(expectedRoot), UiSkillBundle(files, name: name));
+    return ManagedSkillInstallResponse(result: result.name, current: current());
+  }
+
+  @override
+  Future<void> cancelManagedSkill(String requestId) async {
+    cancelled.add(requestId);
+  }
+}
+
 class _Harness {
   _Harness(this.loader) {
     root = tempRootfs();
     currentRoot = root;
+    bridge = _ManagedSkillRuntimeBridge(this);
     c = ProviderContainer(
       overrides: [
         localRuntimeProvider.overrideWith(() => runtime),
+        runtimeBridgeProvider.overrideWithValue(bridge),
         uiRootfsResolverProvider.overrideWithValue(() async => currentRoot),
         uiSkillBundleLoaderProvider.overrideWithValue(() async {
           loads++;
@@ -46,36 +86,13 @@ class _Harness {
       ],
     );
     c.listen(uiSkillAutoInstallProvider, (_, _) {});
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
-      const MethodChannel('dsh/runtime'),
-      (call) async {
-        if (call.method == 'cancelManagedSkill') {
-          cancelled.add((call.arguments as Map)['requestId'] as String);
-          return null;
-        }
-        if (call.method != 'installManagedSkill') throw StateError('unexpected method ${call.method}');
-        final args = call.arguments as Map;
-        bool current() =>
-            !disposed &&
-            !cancelled.contains(args['requestId']) &&
-            c.read(localRuntimeProvider).status.phase == RuntimePhase.running &&
-            c.read(localRuntimeProvider).status.token == args['expectedToken'] &&
-            c.read(localRuntimeProvider).status.managedSkillGeneration == args['expectedGeneration'];
-        if (!current()) return {'result': null, 'current': false};
-        final result = await installUiSkill(
-          Directory(args['expectedRoot'] as String),
-          UiSkillBundle((args['files'] as Map).cast<String, String>(), name: args['name'] as String),
-        );
-        return {'result': result.name, 'current': current()};
-      },
-    );
   }
   final Future<UiSkillBundle> Function(int call) loader;
   final runtime = _Runtime();
   late final Directory root;
   late Directory currentRoot;
+  late final _ManagedSkillRuntimeBridge bridge;
   late final ProviderContainer c;
-  final cancelled = <String>{};
   var loads = 0;
   var disposed = false;
 
@@ -95,10 +112,6 @@ class _Harness {
 
   Future<void> close() async {
     dispose();
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
-      const MethodChannel('dsh/runtime'),
-      null,
-    );
     if (root.existsSync()) root.deleteSync(recursive: true);
     if (currentRoot.path != root.path && currentRoot.existsSync()) currentRoot.deleteSync(recursive: true);
   }

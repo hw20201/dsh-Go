@@ -12,7 +12,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 
-import 'package:dsh_app/runtime/runtime_bridge.dart';
 import 'package:dsh_app/runtime/runtime_state.dart';
 import 'package:dsh_app/state/chat_state.dart';
 import 'package:dsh_app/state/settings_state.dart';
@@ -21,12 +20,10 @@ import 'package:dsh_app/ui/chat/model_sheet.dart' show ModelChip;
 import 'package:dsh_app/ui/chat/usage_sheet.dart' show ContextRing;
 import 'package:dsh_app/ui/chat/widgets/whale_tail.dart' show WhaleSprites;
 import 'package:dsh_app/ui/cordis/cordis_page.dart';
-import 'package:dsh_app/ui/engine/engine_screen.dart';
 import 'package:dsh_app/ui/features/all_features_page.dart';
 import 'package:dsh_app/ui/files/files_page.dart';
 import 'package:dsh_app/ui/onboarding/api_key_page.dart';
 import 'package:dsh_app/ui/onboarding/onboarding_scaffold.dart';
-import 'package:dsh_app/ui/onboarding/runtime_setup_page.dart';
 import 'package:dsh_app/ui/onboarding/welcome_page.dart';
 import 'package:dsh_app/ui/phone/phone_control_screen.dart';
 import 'package:dsh_app/ui/session/session_detail_page.dart';
@@ -204,7 +201,6 @@ void main() {
     },
   );
   capture('all_features', (_) => _golden(const AllFeaturesPage(), overrides: _shellOverrides()));
-  capture('engine', (_) => _golden(const EngineScreen(), overrides: _shellOverrides()));
   capture('remote', (_) => _golden(const RemoteScreen(), overrides: _shellOverrides()));
   capture(
     'files',
@@ -237,9 +233,7 @@ void main() {
   capture('share_panel', (_) {
     final state = shareChatState();
     return testApp(
-      _Launcher(
-        (context) => showSharePanel(context, ConversationSubject(sessionId: 's1', reply: firstReply(state))),
-      ),
+      _Launcher((context) => showSharePanel(context, ConversationSubject(sessionId: 's1', reply: firstReply(state)))),
       overrides: [chatProvider.overrideWith2((id) => FakeChatController(id, state))],
     );
   }, before: _tapOpen);
@@ -279,23 +273,6 @@ void main() {
 
   // ── Onboarding ───────────────────────────────────────────────────────────
   capture('welcome', (_) => _golden(WelcomePage(onStart: () {})));
-  capture(
-    'setup',
-    (_) => _golden(
-      OnboardingProgress(step: 1, steps: 2, child: RuntimeSetupPage(onDone: () {})),
-      overrides: [
-        localRuntimeProvider.overrideWith(
-          () => FakeRuntime(
-            const LocalRuntimeState(
-              loaded: true,
-              status: RuntimeStatus(phase: RuntimePhase.installing, bundledVersion: 'r1'),
-              progress: RuntimeProgressEvent(step: 'extract', done: 48234496, total: 120586240),
-            ),
-          ),
-        ),
-      ],
-    ),
-  );
   capture(
     'api_key',
     (_) => _golden(

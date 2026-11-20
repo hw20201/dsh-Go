@@ -9,6 +9,13 @@ import '../common/status_dot.dart';
 import '../theme/app_icons.dart';
 import '../theme/theme.dart';
 
+/// `rN-dsh…-HASH` → `rN · HASH8`; anything else is shown as is.
+String shortRuntimeVersion(String? v) {
+  if (v == null || v.isEmpty) return '—';
+  final m = RegExp(r'^(r\d+)-.*-([0-9a-f]{8,})$').firstMatch(v);
+  return m == null ? v : '${m.group(1)} · ${m.group(2)!.substring(0, 8)}';
+}
+
 /// The local start failure currently being cleaned up or reported. This wire
 /// prefix is separate from ordinary classified exits, whose failure stays useful.
 bool isLocalStartupFailure(RuntimeStatus status) =>

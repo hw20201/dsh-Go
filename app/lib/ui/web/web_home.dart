@@ -45,7 +45,6 @@ import '../pets/pet_settings_page.dart';
 import '../shell/page_frame.dart';
 import '../theme/app_icons.dart';
 import 'dsh_web_launcher.dart';
-import 'local_web_screen.dart';
 import 'web_handle.dart';
 import 'web_target.dart';
 import 'web_view_page.dart';
@@ -155,7 +154,6 @@ class _WebHomeState extends ConsumerState<WebHome> {
     final access = ref.watch(dshWebAccessProvider);
     final phoneLayout = ref.watch(settingsProvider.select((s) => s.webPhoneLayout));
     final Widget page = switch (access) {
-      LocalDshWeb() => LocalWebScreen(handle: _handle, link: _link, onSession: _onSession),
       SshDshWeb(:final url, :final hostName) || DirectDshWeb(:final url, :final hostName) => WebViewPage(
         // A new forward (reconnect) or layout switch: a new page.
         key: ValueKey((url, phoneLayout)),

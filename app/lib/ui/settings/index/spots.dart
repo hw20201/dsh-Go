@@ -74,7 +74,6 @@ enum SettingsPageId {
   phoneDnd,
   phoneUnlocks,
   systemActions,
-  linuxEnvironment,
   webSearch,
   media,
   plugins,
@@ -89,7 +88,6 @@ enum SettingsPageId {
   systemAccess,
   privacy,
   sharedLinks,
-  engine,
   remote,
   engineParams,
   subagent,
@@ -438,15 +436,6 @@ final _pages = <SettingsPageMeta>[
     ohosOnly: true,
   ),
   SettingsPageMeta(
-    SettingsPageId.linuxEnvironment,
-    title: (l) => l.linuxTitle,
-    group: _abilities,
-    keywords: (l) => l.searchKwLinux,
-    freq: Freq.low,
-    links: const ['linux'],
-    ohosOnly: true,
-  ),
-  SettingsPageMeta(
     SettingsPageId.phoneAppRules,
     title: (l) => l.phoneAppRulesTitle,
     parent: SettingsPageId.phone,
@@ -592,14 +581,6 @@ final _pages = <SettingsPageMeta>[
     links: const ['shared-links'],
   ),
   // 主机
-  SettingsPageMeta(
-    SettingsPageId.engine,
-    title: (l) => l.hubSettingsEngine,
-    group: _hosts,
-    keywords: (l) => l.searchKwEngine,
-    freq: Freq.medium,
-    links: const ['engine'],
-  ),
   SettingsPageMeta(
     SettingsPageId.remote,
     title: (l) => l.commonRemoteHost,
@@ -1104,49 +1085,6 @@ abstract final class Spots {
     condition: SpotCondition.engineField,
   );
 
-  // 本机引擎.
-  static final autoStart = SettingSpot(
-    'auto-start',
-    page: SettingsPageId.engine,
-    title: (l) => l.phoneEngineAutoStart,
-    keywords: (l) => l.searchKwAutoStart,
-  );
-  static final autoSafe = SettingSpot(
-    'auto-safe',
-    page: SettingsPageId.engine,
-    title: (l) => l.phoneSafeAutoSettings,
-    keywords: (l) => l.searchKwAutoSafe,
-    androidOnly: true,
-  );
-  static final safeMode = SettingSpot(
-    'safe-mode',
-    page: SettingsPageId.engine,
-    title: (l) => l.phoneSafeStartSettings,
-    altTitle: (l) => l.phoneSafeLeave,
-    keywords: (l) => l.searchKwSafeMode,
-    iosLacks: true,
-  );
-  static final workspaceRecovery = SettingSpot(
-    'workspace-recovery',
-    page: SettingsPageId.engine,
-    title: (l) => l.workspaceRecoveryEnable,
-    altTitle: (l) => l.workspaceRecoveryDisable,
-    keywords: (l) => l.searchKwWorkspaceRecovery,
-  );
-  static final engineReset = SettingSpot(
-    'engine-reset',
-    page: SettingsPageId.engine,
-    title: (l) => l.phoneEngineReset,
-    keywords: (l) => l.searchKwEngineReset,
-  );
-  static final engineUninstall = SettingSpot(
-    'engine-uninstall',
-    page: SettingsPageId.engine,
-    title: (l) => l.localEnvUninstall,
-    keywords: (l) => l.searchKwEngineUninstall,
-    ohosKeywords: (l) => l.harmonyKwEngineUninstall,
-  );
-
   // 远程主机.
   static final addSshHost = SettingSpot(
     'add-ssh-host',
@@ -1286,12 +1224,6 @@ final _rows = <SettingSpot>[
   Spots.shareConfig,
   Spots.usageStats,
   Spots.chatLogUpload,
-  Spots.autoStart,
-  Spots.autoSafe,
-  Spots.safeMode,
-  Spots.workspaceRecovery,
-  Spots.engineReset,
-  Spots.engineUninstall,
   Spots.addSshHost,
   Spots.remoteAutoConnect,
   Spots.remoteCompactHistory,

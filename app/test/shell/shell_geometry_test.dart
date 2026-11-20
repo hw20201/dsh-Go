@@ -10,7 +10,7 @@ import 'package:dsh_app/state/sessions_state.dart';
 import 'package:dsh_app/state/settings_state.dart';
 import 'package:dsh_app/ui/common/app_sheet.dart';
 import 'package:dsh_app/ui/onboarding/onboarding_scaffold.dart';
-import 'package:dsh_app/ui/onboarding/runtime_setup_page.dart';
+import 'package:dsh_app/ui/onboarding/api_key_page.dart';
 import 'package:dsh_app/ui/shell/brand_mark.dart';
 import 'package:dsh_app/ui/shell/home_shell.dart';
 import 'package:dsh_app/ui/shell/page_frame.dart';
@@ -215,7 +215,7 @@ void main() {
     await tester.pumpWidget(
       goldenApp(
         brightness: Brightness.light,
-        home: OnboardingProgress(step: 1, steps: 2, child: RuntimeSetupPage(onDone: () {})),
+        home: OnboardingProgress(step: 1, steps: 2, child: ApiKeyPage(onDone: () {})),
         overrides: [
           localRuntimeProvider.overrideWith(
             () => FakeRuntime(
@@ -229,7 +229,7 @@ void main() {
       ),
     );
     await tester.pump();
-    final screen = tester.getRect(find.byType(RuntimeSetupPage));
+    final screen = tester.getRect(find.byType(ApiKeyPage));
     final bar = tester.getRect(find.byType(OnboardingStepBar));
     expect(bar.center.dx, _near(screen.center.dx));
     expect(bar.width, _near(OnboardingStepBar.width));

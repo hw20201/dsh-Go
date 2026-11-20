@@ -1,9 +1,8 @@
-// Model changes must reach the already-open composer on the same local host.
-// Keep the real ChatScreen/Composer/controller; only native and RPC IO is fake.
+// Remote speech capabilities drive the already-open composer. Keep the real
+// ChatScreen/Composer/controller; only native and RPC IO is fake.
 import 'dart:async';
 
 import 'package:dsh_app/state/connection_state.dart';
-import 'package:dsh_app/state/voice_model_state.dart';
 import 'package:dsh_app/state/voice_state.dart';
 import 'package:dsh_app/ui/chat/chat_screen.dart';
 import 'package:dsh_app/ui/chat/composer.dart';
@@ -19,16 +18,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'support/composer_fakes.dart';
 import 'support/harness.dart';
 
-class _Model extends VoiceModelController {
-  _Model(this.initial);
-  final VoiceModelStatus initial;
-
-  @override
-  VoiceModelState build() => VoiceModelState(status: initial);
-
-  void change(VoiceModelStatus status) => state = state.copyWith(status: status);
-}
-
 class _Host extends Notifier<HostConnection?> {
   _Host(this.initial);
   final HostConnection initial;
@@ -43,7 +32,7 @@ final _hostProvider = NotifierProvider<_Host, HostConnection?>(() => throw Unimp
 
 class _Carrier extends FakeRpcCarrier {
   _Carrier({this.phase = 'unprepared'}) : super({});
-  String phase;
+  final String phase;
   Future<Object?>? pendingCatalog;
 
   @override
@@ -59,17 +48,15 @@ class _Carrier extends FakeRpcCarrier {
 }
 
 class _Rig {
-  _Rig({bool local = true, bool system = false, VoiceModelStatus status = VoiceModelStatus.downloading})
-    : model = _Model(status),
-      bridge = FakeVoiceBridge(caps: VoiceCapabilities(recognizer: system, recorder: true)) {
+  _Rig({bool system = false, String phase = 'unprepared'})
+    : bridge = FakeVoiceBridge(caps: VoiceCapabilities(recognizer: system, recorder: true)),
+      carrier = _Carrier(phase: phase) {
     client = DshClient.withCarrier(carrier);
-    host = _Host(HostConnection(client: client, isLocal: local));
-    if (status == VoiceModelStatus.ready) carrier.phase = 'standby';
+    host = _Host(HostConnection(client: client, isLocal: false));
   }
 
-  final _Model model;
   final FakeVoiceBridge bridge;
-  final carrier = _Carrier();
+  final _Carrier carrier;
   late final DshClient client;
   late final _Host host;
 
@@ -91,12 +78,10 @@ class _Rig {
           // Replace the harness's first override (its fixed connection).
           ...harness.overrides.skip(1),
           voiceBridgeProvider.overrideWithValue(bridge),
-          voiceModelProvider.overrideWith(() => model),
         ],
       ),
     );
     await pumpFrames(tester);
-    ProviderScope.containerOf(tester.element(find.byType(ChatScreen))).read(voiceModelProvider);
   }
 
   VoiceInputController voice(WidgetTester tester) => tester.widget<Composer>(find.byType(Composer)).voice!;
@@ -107,105 +92,62 @@ Finder get _mic => find.byIcon(AppIcons.voice);
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  testWidgets('download becoming ready exposes the microphone on the existing local host', (tester) async {
-    final rig = _Rig();
-    await rig.pump(tester);
-    expect(_mic, findsNothing);
-    expect(rig.carrier.probes, 1);
+  for (final ready in [false, true]) {
+    testWidgets('remote catalog readiness controls the existing composer (ready: $ready)', (tester) async {
+      final rig = _Rig(phase: ready ? 'standby' : 'unprepared');
+      await rig.pump(tester);
 
-    rig.carrier.phase = 'standby';
-    rig.model.change(VoiceModelStatus.ready);
-    await pumpFrames(tester);
+      expect(rig.voice(tester).available, ready);
+      expect(_mic, ready ? findsOneWidget : findsNothing);
+      expect(rig.carrier.probes, 1);
+    });
+  }
 
-    expect(rig.voice(tester).available, isTrue);
-    expect(_mic, findsOneWidget);
-    expect(rig.carrier.probes, 2);
-  });
-
-  testWidgets('deleting the model removes the microphone on the same local connection', (tester) async {
-    final rig = _Rig(status: VoiceModelStatus.ready);
-    await rig.pump(tester);
-    expect(_mic, findsOneWidget);
-
-    rig.carrier.phase = 'unprepared';
-    rig.model.change(VoiceModelStatus.absent);
-    await pumpFrames(tester);
-
-    expect(rig.voice(tester).available, isFalse);
-    expect(_mic, findsNothing);
-    expect(rig.carrier.probes, 2);
-  });
-
-  testWidgets('local model changes do not refresh or remove a remote microphone', (tester) async {
-    final rig = _Rig(local: false);
-    rig.carrier.phase = 'standby';
-    await rig.pump(tester);
-    expect(_mic, findsOneWidget);
-    final before = rig.carrier.probes;
-
-    rig.model.change(VoiceModelStatus.ready);
-    await pumpFrames(tester);
-    rig.model.change(VoiceModelStatus.absent);
-    await pumpFrames(tester);
-
-    expect(_mic, findsOneWidget);
-    expect(rig.carrier.probes, before);
-  });
-
-  testWidgets('download progress without a ready change does not repeat the capability probe', (tester) async {
-    final rig = _Rig();
-    await rig.pump(tester);
-    rig.model.change(VoiceModelStatus.preparing);
-    await pumpFrames(tester);
-    expect(_mic, findsNothing);
-    expect(rig.carrier.probes, 1);
-  });
-
-  testWidgets('a system microphone stays available without an eager engine query', (tester) async {
-    final rig = _Rig(system: true);
-    await rig.pump(tester);
-    expect(_mic, findsOneWidget);
-    rig.model.change(VoiceModelStatus.ready);
-    await pumpFrames(tester);
-    rig.model.change(VoiceModelStatus.absent);
-    await pumpFrames(tester);
-    expect(_mic, findsOneWidget);
-    expect(rig.carrier.probes, 0);
-  });
-
-  testWidgets('ready arriving during an older catalog probe is checked again after that reply', (tester) async {
+  testWidgets('a remote catalog reply exposes the microphone without reopening chat', (tester) async {
     final pending = Completer<Object?>();
     final rig = _Rig();
     rig.carrier.pendingCatalog = pending.future;
     await rig.pump(tester);
-    expect(rig.carrier.probes, 1);
     expect(_mic, findsNothing);
+    expect(rig.carrier.probes, 1);
 
-    rig.carrier.phase = 'standby';
-    rig.model.change(VoiceModelStatus.ready);
-    await pumpFrames(tester);
-    // The old response was computed before the model became ready.
-    pending.complete(readySpeechCatalog(phase: 'unprepared'));
+    pending.complete(readySpeechCatalog());
     await pumpFrames(tester);
 
     expect(rig.voice(tester).available, isTrue);
     expect(_mic, findsOneWidget);
-    expect(rig.carrier.probes, 2);
+    expect(rig.carrier.probes, 1);
   });
 
-  testWidgets('a pending local refresh cannot replay a model event onto a replacement host', (tester) async {
+  for (final ready in [false, true]) {
+    testWidgets('switching remote hosts uses the replacement catalog (ready: $ready)', (tester) async {
+      final rig = _Rig(phase: ready ? 'unprepared' : 'standby');
+      await rig.pump(tester);
+      expect(rig.voice(tester).available, !ready);
+
+      final replacement = _Carrier(phase: ready ? 'standby' : 'unprepared');
+      final replacementClient = DshClient.withCarrier(replacement);
+      addTearDown(replacementClient.close);
+      rig.host.use(HostConnection(client: replacementClient, isLocal: false));
+      await pumpFrames(tester);
+
+      expect(rig.voice(tester).available, ready);
+      expect(_mic, ready ? findsOneWidget : findsNothing);
+      expect(rig.carrier.probes, 1);
+      expect(replacement.probes, 1);
+    });
+  }
+
+  testWidgets('a stale ready catalog cannot enable voice on a replacement remote host', (tester) async {
     final pending = Completer<Object?>();
     final rig = _Rig();
     rig.carrier.pendingCatalog = pending.future;
     await rig.pump(tester);
-    rig.carrier.phase = 'standby';
-    rig.model.change(VoiceModelStatus.ready);
-    await tester.pump();
 
-    final remote = _Carrier(phase: 'unprepared');
-    final remoteClient = DshClient.withCarrier(remote);
-    addTearDown(remoteClient.close);
-    rig.host.use(HostConnection(client: remoteClient, isLocal: false));
+    final replacement = _Carrier();
+    final replacementClient = DshClient.withCarrier(replacement);
+    addTearDown(replacementClient.close);
+    rig.host.use(HostConnection(client: replacementClient, isLocal: false));
     await tester.pump();
     pending.complete(readySpeechCatalog());
     await pumpFrames(tester);
@@ -213,22 +155,31 @@ void main() {
     expect(rig.voice(tester).available, isFalse);
     expect(_mic, findsNothing);
     expect(rig.carrier.probes, 1);
-    // This probe belongs to the host switch, not the previous local model.
-    expect(remote.probes, 1);
+    expect(replacement.probes, 1);
   });
 
-  testWidgets('disposing the chat retires its pending model refresh', (tester) async {
+  testWidgets('a system microphone stays available without an eager remote speech query', (tester) async {
+    final rig = _Rig(system: true);
+    await rig.pump(tester);
+
+    expect(rig.voice(tester).available, isTrue);
+    expect(_mic, findsOneWidget);
+    expect(rig.carrier.probes, 0);
+  });
+
+  testWidgets('disposing chat retires a pending remote catalog probe', (tester) async {
     final pending = Completer<Object?>();
     final rig = _Rig();
     rig.carrier.pendingCatalog = pending.future;
     await rig.pump(tester);
-    rig.model.change(VoiceModelStatus.ready);
-    await tester.pump();
+    expect(rig.carrier.probes, 1);
+
     await tester.pumpWidget(const SizedBox.shrink());
-    pending.complete(readySpeechCatalog(phase: 'unprepared'));
+    pending.complete(readySpeechCatalog());
     await pumpFrames(tester);
 
     expect(rig.carrier.probes, 1);
+    expect(find.byType(Composer), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }

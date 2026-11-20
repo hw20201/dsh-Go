@@ -23,8 +23,8 @@ import '../phone/support.dart' show FixedActiveHost;
 void main() {
   group('pageLinkId', () {
     test('accepts exactly dshgo://open/<known page>', () {
-      expect(pageLinkId(Uri.parse('dshgo://open/engine')), 'engine');
-      expect(pageLinkId(Uri.parse('dshgo://open/engine/')), 'engine');
+      expect(pageLinkId(Uri.parse('dshgo://open/engine-settings')), 'engine-settings');
+      expect(pageLinkId(Uri.parse('dshgo://open/engine-settings/')), 'engine-settings');
       expect(pageLinkId(Uri.parse('DSHGO://OPEN/phone')), 'phone');
       expect(pageLinkId(Uri.parse('dshgo://open/appearance')), 'appearance');
     });
@@ -35,13 +35,15 @@ void main() {
         'dshgo://share/engine',
         'dshgo://open',
         'dshgo://open/',
-        'dshgo://open/engine/logs',
-        'dshgo://open/engine?x=1',
-        'dshgo://open/engine#top',
+        'dshgo://open/engine-settings/logs',
+        'dshgo://open/engine-settings?x=1',
+        'dshgo://open/engine-settings#top',
         'dshgo://me@open/engine',
         'dshgo://open:8080/engine',
         'dshgo://open/Engine',
         'dshgo://open/nope',
+        'dshgo://open/engine',
+        'dshgo://open/linux-environment',
         // 全部功能 entries that are actions, web pages or need a conversation.
         'dshgo://open/search',
         'dshgo://open/share-profile',
@@ -77,13 +79,13 @@ void main() {
     expect(pageForId('search', null), isNull);
   });
 
-  test('every id the guide or a reply may already use still opens', () {
-    // The ids before the settings index (0.9.6): none may stop working.
+  test('supported guide and reply ids still open', () {
+    // Retained ids from before the settings index (0.9.6).
     const before = {
       'schedules', 'permission', 'agent-presets', 'models', 'subagent-settings', 'agent-loop', //
       'shell-settings', 'web-search', 'plugins', 'plugin-inventory', 'cordis', 'agent-team', 'forum', //
       'community', 'ds-bot', 'notifications', 'workspaces', 'general', 'account', 'remote', 'phone', //
-      'engine', 'diagnostics', 'settings', 'appearance', 'pets', 'shared-links', 'engine-settings', //
+      'diagnostics', 'settings', 'appearance', 'pets', 'shared-links', 'engine-settings', //
       'all-features', 'background',
     };
     expect(pageLinkIds, containsAll(before));
@@ -149,10 +151,10 @@ void main() {
 
     testWidgets('a known page opens over the home route with the open conversation', (tester) async {
       await pumpHome(tester);
-      expect(await router.open(Uri.parse('dshgo://open/engine')), isTrue);
+      expect(await router.open(Uri.parse('dshgo://open/engine-settings')), isTrue);
       await tester.pumpAndSettle();
-      expect(find.text('page engine'), findsOneWidget);
-      expect(opened, [('engine', 's1')]);
+      expect(find.text('page engine-settings'), findsOneWidget);
+      expect(opened, [('engine-settings', 's1')]);
     });
 
     testWidgets('an unknown page shows one line and opens nothing', (tester) async {

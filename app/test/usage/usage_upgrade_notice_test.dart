@@ -10,10 +10,10 @@
 import 'dart:async';
 
 import 'package:dsh_app/l10n/l10n.dart';
-import 'package:dsh_app/runtime/runtime_bridge.dart';
-import 'package:dsh_app/runtime/runtime_state.dart';
 import 'package:dsh_app/state/android_features.dart';
+import 'package:dsh_app/state/hosts_state.dart';
 import 'package:dsh_app/state/settings_state.dart';
+import 'package:dsh_app/ui/onboarding/onboarding_flow.dart';
 import 'package:dsh_app/ui/settings/index/spot_anchor.dart';
 import 'package:dsh_app/ui/settings/privacy_page.dart';
 import 'package:dsh_app/ui/shell/root_gate.dart';
@@ -251,6 +251,9 @@ void main() {
 
   group('first run', () {
     Future<void> pumpGate(WidgetTester tester, {required bool connected}) async {
+      SharedPreferences.setMockInitialValues({
+        if (connected) ActiveHostController.prefsKey: const HostRef.ssh('lab').encode(),
+      });
       usePhoneSurface(tester);
       await tester.pumpWidget(
         goldenApp(
@@ -258,18 +261,8 @@ void main() {
           brightness: Brightness.light,
           overrides: [
             // The root gate's own settings, not the engine pages' ones.
-            ...usageOverrides(
-              clock: () => now,
-              http: http,
-              onResumes: (r) => resume = r,
-              runtime: const LocalRuntimeState(
-                loaded: true,
-                status: RuntimeStatus(phase: RuntimePhase.installed, installedVersion: 'r1', bundledVersion: 'r1'),
-              ),
-            ),
-            settingsProvider.overrideWith(
-              () => FakeSettings(AppSettings(loaded: true, apiKey: connected ? 'sk-0123456789abcdef' : '')),
-            ),
+            ...usageOverrides(clock: () => now, http: http, onResumes: (r) => resume = r),
+            settingsProvider.overrideWith(() => FakeSettings(const AppSettings(loaded: true))),
           ],
         ),
       );
@@ -282,11 +275,14 @@ void main() {
       await _wait(tester, const Duration(seconds: 10));
       expect(find.byKey(_notice), findsNothing);
       expect(_container(tester).read(usageStatsProvider).noticed, isFalse);
+      expect(find.byType(OnboardingFlow), findsOneWidget);
     });
 
     testWidgets('on the home, after it', (tester) async {
       await pumpGate(tester, connected: true);
       await _wait(tester);
+      expect(find.byType(OnboardingFlow), findsNothing);
+      expect(_container(tester).read(activeHostProvider), const HostRef.ssh('lab'));
       expect(find.text(appL10n.usageUpgradeNotice), findsOneWidget);
     });
   });

@@ -27,8 +27,7 @@ import '../media/media_paths.dart';
 import '../widgets/image_actions.dart';
 import '../widgets/image_gallery.dart' show ViewerImage;
 
-/// Largest workspace image a reply downloads from a remote Host just to show
-/// it inline (the Host's own image limit is 20 MiB).
+/// Largest image a reply reads or decodes to show inline.
 const maxMarkdownImageBytes = 20 * 1024 * 1024;
 
 /// Tallest an image is drawn in the reply; taller ones keep their aspect
@@ -85,11 +84,11 @@ ImageSource imageSourceOf(String url) {
   if (target.startsWith('<') && target.endsWith('>')) {
     target = target.substring(1, target.length - 1).trim();
   }
+  if (target.length >= 5 && target.substring(0, 5).toLowerCase() == 'data:') return DataImageSource(target);
   final lower = target.toLowerCase();
   if (lower.startsWith('http://') || lower.startsWith('https://')) {
     return WebImageSource(target);
   }
-  if (lower.startsWith('data:')) return DataImageSource(target);
   // Windows drive paths included: the same rules as links and artifact cards.
   final path = resolveWorkspaceLink(url);
   return path == null ? const UnsupportedImageSource() : WorkspaceImageSource(path);
@@ -315,8 +314,8 @@ final engineImageReaderProvider = Provider<CachedImageReader>(
     EngineImageReader(ref.watch(artifactFilesProvider).connection?.client),
     capacity: 32,
     keeps: (image) => switch (image) {
-      RasterImage(provider: MemoryImage(:final bytes)) || SvgImageBytes(:final bytes) =>
-        bytes.length <= maxHeldEngineImageBytes,
+      RasterImage(provider: MemoryImage(:final bytes)) ||
+      SvgImageBytes(:final bytes) => bytes.length <= maxHeldEngineImageBytes,
       _ => true,
     },
   ),
@@ -361,26 +360,50 @@ void _rememberSize(String key, Size size) {
   }
 }
 
-/// `data:` images decoded once per address.
-final _dataImages = <String, Uint8List?>{};
+final _dataImages = InlineDataImageCache();
 
-Uint8List? _dataBytes(String url) {
-  final hit = _dataImages.remove(url);
-  if (hit != null || _dataImages.containsKey(url)) {
-    _dataImages[url] = hit;
-    return hit;
+/// Retains only small inline images across mounts, including their URL keys.
+@visibleForTesting
+class InlineDataImageCache {
+  InlineDataImageCache({this.maxImageBytes = maxMarkdownImageBytes});
+
+  final int maxImageBytes;
+  static const _capacity = 32;
+  static const _maxEntryBytes = 256 * 1024;
+  static const _maxCacheBytes = 2 * 1024 * 1024;
+  final _entries = <String, (Uint8List, int)>{};
+  int _heldBytes = 0;
+
+  Uint8List? read(String url) {
+    // Base64 characters can be percent-escaped. Leave room for the data header.
+    final maxUrlLength = ((maxImageBytes + 2) ~/ 3) * 12 + 1024;
+    if (url.length > maxUrlLength) return null;
+    final keyBytes = url.length * 2;
+    if (keyBytes <= _maxEntryBytes) {
+      final hit = _entries.remove(url);
+      if (hit != null) {
+        _entries[url] = hit;
+        return hit.$1;
+      }
+    }
+
+    final Uint8List bytes;
+    try {
+      bytes = UriData.parse(url).contentAsBytes();
+    } on FormatException {
+      return null;
+    }
+    if (bytes.length > maxImageBytes) return null;
+    final weight = keyBytes + bytes.length;
+    if (weight <= _maxEntryBytes) {
+      _entries[url] = (bytes, weight);
+      _heldBytes += weight;
+      while (_entries.length > _capacity || _heldBytes > _maxCacheBytes) {
+        _heldBytes -= _entries.remove(_entries.keys.first)!.$2;
+      }
+    }
+    return bytes;
   }
-  Uint8List? bytes;
-  try {
-    bytes = UriData.parse(url).contentAsBytes();
-  } on FormatException {
-    bytes = null;
-  }
-  _dataImages[url] = bytes;
-  while (_dataImages.length > 32) {
-    _dataImages.remove(_dataImages.keys.first);
-  }
-  return bytes;
 }
 
 /// The gpt_markdown image builder: [MarkdownImage] for every `![…](…)` and
@@ -443,11 +466,12 @@ class _MarkdownImageState extends ConsumerState<MarkdownImage> {
   LoadedImage? _loaded;
   Object? _error;
   double? _emojiSide;
+  ({Uint8List? bytes})? _inlineData;
 
   /// Bumped by a retry, so a failed web image is fetched again.
   int _attempt = 0;
 
-  String get _sizeKey => '${_sessionId ?? ''}\n${_path ?? widget.url}';
+  String? get _sizeKey => _source is DataImageSource ? null : '${_sessionId ?? ''}\n${_path ?? widget.url}';
 
   @override
   void didChangeDependencies() {
@@ -460,6 +484,7 @@ class _MarkdownImageState extends ConsumerState<MarkdownImage> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.url != widget.url) {
       _source = imageSourceOf(widget.url);
+      _inlineData = null;
       _resolve();
     }
   }
@@ -649,7 +674,7 @@ class _MarkdownImageState extends ConsumerState<MarkdownImage> {
       final shown = ref.watch(sessionMediaPathsProvider(_sessionId!));
       if (shownInMediaCard(shown, _path!)) return const SizedBox.shrink();
     }
-    final name = imageDisplayName(widget.url);
+    final name = _source is DataImageSource ? l10n.chatImage : imageDisplayName(widget.url);
     Widget placeholder() => _emojiSide == null
         ? _ImagePlaceholder(size: _knownSizes[_sizeKey], hint: _hint)
         : SizedBox.square(
@@ -700,7 +725,7 @@ class _MarkdownImageState extends ConsumerState<MarkdownImage> {
       case WebImageSource(:final url):
         child = _raster(NetworkImage(url), placeholder: placeholder, failed: failed);
       case DataImageSource(:final url):
-        final bytes = _dataBytes(url);
+        final bytes = (_inlineData ??= (bytes: _dataImages.read(url))).bytes;
         if (bytes == null) {
           child = failed(null);
         } else if (isSvgUrl(url)) {
@@ -741,25 +766,23 @@ class _MarkdownImageState extends ConsumerState<MarkdownImage> {
         ? provider
         : inlineImageProvider(provider, MediaQuery.devicePixelRatioOf(context), _hint);
     _inlineProvider = resized;
-    return _SizeProbe(
-      provider: resized,
-      sizeKey: _sizeKey,
-      child: Image(
-        key: ValueKey((resized, _attempt)),
-        image: resized,
-        fit: BoxFit.contain,
-        gaplessPlayback: true,
-        frameBuilder: (context, image, frame, synchronous) {
-          if (frame == null) return placeholder();
-          return _framed(image, onTap: () => _open(provider), onLongPress: () => _actions(provider));
-        },
-        errorBuilder: (context, error, _) {
-          _galleryImage = null;
-          _workspaceGallery = false;
-          return failed(error);
-        },
-      ),
+    final image = Image(
+      key: ValueKey((resized, _attempt)),
+      image: resized,
+      fit: BoxFit.contain,
+      gaplessPlayback: true,
+      frameBuilder: (context, image, frame, synchronous) {
+        if (frame == null) return placeholder();
+        return _framed(image, onTap: () => _open(provider), onLongPress: () => _actions(provider));
+      },
+      errorBuilder: (context, error, _) {
+        _galleryImage = null;
+        _workspaceGallery = false;
+        return failed(error);
+      },
     );
+    final sizeKey = _sizeKey;
+    return sizeKey == null ? image : _SizeProbe(provider: resized, sizeKey: sizeKey, child: image);
   }
 
   /// [image] constrained to the column and [maxMarkdownImageHeight] (or the

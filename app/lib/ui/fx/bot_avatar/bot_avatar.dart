@@ -201,6 +201,7 @@ class _BotAvatarState extends State<BotAvatar> with SingleTickerProviderStateMix
   bool _listening = false;
   ui.Image? _still;
   String? _stillKey;
+  String? _stillPendingKey;
 
   BotAvatarType get _type => widget.type ?? (widget.id != null ? BotAvatar.typeFor(widget.id!) : BotAvatarType.clover);
 
@@ -288,24 +289,49 @@ class _BotAvatarState extends State<BotAvatar> with SingleTickerProviderStateMix
   }
 
   /* the still frame of the state, shared by every avatar that looks the same */
-  ui.Image? _stillImage(BotAvatarLook look, double dpr) {
+  void _queueStillImage(BotAvatarLook look, double dpr) {
     final key = '${look.id}|${widget.state.name}|${widget.size}|$dpr';
-    if (_stillKey == key && _still != null) return _still;
+    if (_stillKey == key && _still != null) return;
+    if (_stillPendingKey == key) return;
     _still?.dispose();
-    _still = _StillCache.get(key, () {
-      final box = widget.size, full = box * botAvatarOverscan;
-      final rec = ui.PictureRecorder();
-      final c = Canvas(rec)..scale(dpr);
-      final rs = BotAvatarRenderState();
-      paintBotAvatar(c, box, BotAvatarPose.rest(widget.state), look, rs, dpr: dpr, still: true);
-      rs.dispose();
-      final pic = rec.endRecording();
-      final img = pic.toImageSync((full * dpr).ceil(), (full * dpr).ceil());
-      pic.dispose();
-      return img;
-    });
-    _stillKey = key;
-    return _still;
+    _still = null;
+    _stillKey = null;
+    _stillPendingKey = key;
+    SchedulerBinding.instance.addPostFrameCallback((_) => _bakeStill(key, look, dpr));
+  }
+
+  Future<void> _bakeStill(String key, BotAvatarLook look, double dpr) async {
+    if (!mounted || _stillPendingKey != key) return;
+    try {
+      final img = await _StillCache.get(key, () async {
+        final box = widget.size, full = box * botAvatarOverscan;
+        final rec = ui.PictureRecorder();
+        final c = Canvas(rec)..scale(dpr);
+        final rs = BotAvatarRenderState();
+        paintBotAvatar(c, box, BotAvatarPose.rest(widget.state), look, rs, dpr: dpr, still: true);
+        rs.dispose();
+        final pic = rec.endRecording();
+        try {
+          return await pic.toImage((full * dpr).ceil(), (full * dpr).ceil());
+        } finally {
+          pic.dispose();
+        }
+      });
+      if (!mounted || _stillPendingKey != key) {
+        img.dispose();
+        return;
+      }
+      _stillPendingKey = null;
+      setState(() {
+        _still = img;
+        _stillKey = key;
+      });
+    } catch (error, stack) {
+      if (_stillPendingKey == key) _stillPendingKey = null;
+      FlutterError.reportError(
+        FlutterErrorDetails(exception: error, stack: stack, library: 'bot avatar still-frame baking'),
+      );
+    }
   }
 
   @override
@@ -345,7 +371,11 @@ class _BotAvatarState extends State<BotAvatar> with SingleTickerProviderStateMix
       _stillKey = null;
       painter = _LivePainter(live ? _sim.pose : BotAvatarPose.rest(widget.state), look, _rs, dpr, !live, _frame);
     } else {
-      painter = _StillPainter(_stillImage(look, dpr)!);
+      _queueStillImage(look, dpr);
+      final still = _still;
+      painter = still == null
+          ? _LivePainter(BotAvatarPose.rest(widget.state), look, _rs, dpr, true, _frame)
+          : _StillPainter(still);
     }
     Widget child = RepaintBoundary(
       child: CustomPaint(size: Size.square(box), painter: painter),
@@ -419,14 +449,33 @@ class _StillPainter extends CustomPainter {
 /// Still frames shared by every avatar that looks the same (a handle each).
 abstract final class _StillCache {
   static final _images = <String, ui.Image>{};
+  static final _pending = <String, Future<ui.Image>>{};
 
-  static ui.Image get(String key, ui.Image Function() make) {
-    var img = _images.remove(key);
-    img ??= make();
-    _images[key] = img;
+  static Future<ui.Image> get(String key, Future<ui.Image> Function() make) async {
+    final cached = _images.remove(key);
+    if (cached != null) {
+      _images[key] = cached;
+      return cached.clone();
+    }
+    late final Future<ui.Image> future;
+    future = _pending.putIfAbsent(key, () async {
+      final image = await make();
+      put(key, image);
+      return image;
+    });
+    try {
+      return (await future).clone();
+    } finally {
+      if (identical(_pending[key], future)) _pending.remove(key);
+    }
+  }
+
+  static void put(String key, ui.Image image) {
+    final old = _images.remove(key);
+    old?.dispose();
+    _images[key] = image;
     while (_images.length > 96) {
       _images.remove(_images.keys.first)!.dispose();
     }
-    return img.clone();
   }
 }

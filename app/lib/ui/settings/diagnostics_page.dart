@@ -24,13 +24,11 @@ import '../../state/sessions_state.dart';
 import '../common/risk_notice.dart';
 import '../common/list_page_row.dart';
 import '../engine/diagnostics_export_card.dart';
-import '../engine/engine_screen.dart' show shortRuntimeVersion;
 import '../engine/engine_status.dart';
 import '../shell/page_frame.dart';
 import '../phone/phone_control_screen.dart';
 import '../theme/app_icons.dart';
 import 'settings_widgets.dart';
-import 'direct_engine_settings.dart';
 import '../common/brief_notice.dart';
 
 /// Self-service diagnostics: what the app knows about the runtime and the
@@ -158,7 +156,6 @@ class DiagnosticsPage extends ConsumerWidget {
         // The note belongs to the export card; the next group starts 24 below
         // it, as groups do.
         const DiagnosticsBundleNote(),
-        if (ref.watch(androidSystemFeaturesProvider)) ...[const SizedBox(height: 24), const DirectEngineSettings()],
       ],
     );
   }

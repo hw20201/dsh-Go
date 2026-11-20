@@ -17,7 +17,10 @@ class ChatSuggestion {
       _prompt = prompt,
       _defaultIndex = null;
 
-  const ChatSuggestion._default(this.icon, this._defaultIndex, this.tint) : _label = null, _prompt = null, _detail = null;
+  const ChatSuggestion._default(this.icon, this._defaultIndex, this.tint)
+    : _label = null,
+      _prompt = null,
+      _detail = null;
 
   final IconData icon;
   final SuggestionTint tint;
@@ -144,10 +147,7 @@ class ChatEmptyState extends StatelessWidget {
     required this.connected,
     required this.onSuggestion,
     this.connecting = false,
-    this.starting = false,
-    this.tidying = false,
     this.onReconnect,
-    this.idle,
     this.now,
     this.suggestions = defaultSuggestions,
     this.workspace,
@@ -160,20 +160,10 @@ class ChatEmptyState extends StatelessWidget {
   final bool connected;
   final bool connecting;
 
-  /// The on-device engine is booting.
-  final bool starting;
-
-  /// Booting includes the one-time tidy of plugin files (RuntimeStatus.tidyingFiles).
-  final bool tidying;
-
   /// The engine could not be reached: the one primary pill, 「重新连接」,
   /// where the workspace chip goes; the suggestions fold away.
   final VoidCallback? onReconnect;
 
-  /// 本机 is down and won't come up by itself (not installed, or stopped
-  /// with 打开 App 时自动启动 off): the subtitle says so and the one primary
-  /// pill fixes it (「安装运行环境」 / 「启动引擎」).
-  final ChatIdleAction? idle;
   final ValueChanged<ChatSuggestion> onSuggestion;
 
   /// The workspace the new conversation starts in (null: the default).
@@ -218,15 +208,10 @@ class ChatEmptyState extends StatelessWidget {
     final theme = Theme.of(context);
     final dsh = DshColors.of(context);
     final retry = connected ? null : onReconnect;
-    final idle = connected || retry != null ? null : this.idle;
     final subtitle = connected
         ? l10n.viewEmptySubtitle
         : retry != null
         ? l10n.commonEngineUnreachable
-        : idle != null
-        ? idle.message
-        : starting
-        ? (tidying ? l10n.phoneEngineTidyingFilesEllipsis : l10n.viewEmptyStarting)
         : connecting
         ? l10n.viewEmptyConnecting
         : l10n.viewEmptyDisconnected;
@@ -239,8 +224,6 @@ class ChatEmptyState extends StatelessWidget {
     // the same height, swapped in place.
     final Widget? slot = retry != null
         ? EmptyPrimaryPill(key: const ValueKey('reconnect'), label: l10n.viewEmptyReconnect, onTap: retry)
-        : idle != null
-        ? EmptyPrimaryPill(key: ValueKey(idle.label), label: idle.label, onTap: idle.onTap)
         : workspace != null && connected
         ? ConstrainedBox(
             key: const ValueKey('workspace'),
@@ -314,13 +297,10 @@ class ChatEmptyState extends StatelessWidget {
                   ),
                 ),
               ],
-              if (connected && options != null) ...[
-                const SizedBox(height: optionsGap),
-                enter(Center(child: options!)),
-              ],
+              if (connected && options != null) ...[const SizedBox(height: optionsGap), enter(Center(child: options!))],
               if (suggestions.isNotEmpty || tipList.isNotEmpty)
                 ExpandReveal(
-                  open: retry == null && idle == null,
+                  open: retry == null,
                   child: Padding(
                     padding: const EdgeInsets.only(top: suggestionsGap),
                     child: Column(
@@ -351,13 +331,4 @@ class ChatEmptyState extends StatelessWidget {
       ),
     );
   }
-}
-
-/// [ChatEmptyState.idle]: what the subtitle says and the pill under it.
-class ChatIdleAction {
-  const ChatIdleAction({required this.message, required this.label, required this.onTap});
-
-  final String message;
-  final String label;
-  final VoidCallback onTap;
 }

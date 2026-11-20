@@ -16,7 +16,6 @@ import 'dart:convert';
 import 'package:dsh_app/l10n/l10n.dart';
 import 'package:dsh_app/pets/pet_mood.dart';
 import 'package:dsh_app/pets/pet_signals.dart';
-import 'package:dsh_app/runtime/runtime_bridge.dart' show RuntimePhase, RuntimeStatus;
 import 'package:dsh_app/runtime/runtime_state.dart';
 import 'package:dsh_app/state/draft_store.dart';
 import 'package:dsh_app/state/hosts_state.dart';
@@ -26,6 +25,7 @@ import 'package:dsh_app/state/settings_state.dart';
 import 'package:dsh_app/state/star_prompt.dart';
 import 'package:dsh_app/state/voice_state.dart';
 import 'package:dsh_app/ui/common/side_insets.dart';
+import 'package:dsh_app/ui/onboarding/onboarding_flow.dart';
 import 'package:dsh_app/ui/settings/about_page.dart';
 import 'package:dsh_app/ui/settings/settings_widgets.dart';
 import 'package:dsh_app/ui/shell/root_gate.dart';
@@ -639,6 +639,9 @@ void main() {
 
     group('first run', () {
       Future<_Bench> pumpGate(WidgetTester tester, {required bool connected}) async {
+        SharedPreferences.setMockInitialValues({
+          if (connected) ActiveHostController.prefsKey: const HostRef.ssh('lab').encode(),
+        });
         usePhoneSurface(tester);
         final bench = _Bench(tester, MemoryStarStore(_due), TestClock());
         await tester.pumpWidget(
@@ -657,17 +660,7 @@ void main() {
             overrides: [
               starPromptGateProvider.overrideWithValue(true),
               ...bench.overrides,
-              localRuntimeProvider.overrideWith(
-                () => FakeRuntime(
-                  const LocalRuntimeState(
-                    loaded: true,
-                    status: RuntimeStatus(phase: RuntimePhase.installed, installedVersion: 'r1', bundledVersion: 'r1'),
-                  ),
-                ),
-              ),
-              settingsProvider.overrideWith(
-                () => FakeSettings(AppSettings(loaded: true, apiKey: connected ? 'sk-0123456789abcdef' : '')),
-              ),
+              settingsProvider.overrideWith(() => FakeSettings(const AppSettings(loaded: true))),
               phoneChannelProvider.overrideWithValue(NoPhone()),
             ],
           ),
@@ -682,11 +675,14 @@ void main() {
         await bench.settle();
         expect(bench.showing, isFalse);
         expect(bench.store.record!.shows, 0);
+        expect(find.byType(OnboardingFlow), findsOneWidget);
       });
 
       testWidgets('on the home, after it', (tester) async {
         final bench = await pumpGate(tester, connected: true);
         await bench.settle();
+        expect(find.byType(OnboardingFlow), findsNothing);
+        expect(bench.container.read(activeHostProvider), const HostRef.ssh('lab'));
         expect(bench.showing, isTrue);
       });
     });

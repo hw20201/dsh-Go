@@ -479,8 +479,11 @@ final dsBotSessionFilterProvider = Provider<bool Function(HostRef host, String s
 
 // ── Photos ───────────────────────────────────────────────────────────────────
 
-/// A Bot's photo, decoded once per reference and connection generation.
-final dsBotPhotoProvider = FutureProvider.family<Uint8List?, ({String botId, String ref})>((ref, key) async {
+/// A Bot's photo, shared while its reference and connection generation are watched.
+final dsBotPhotoProvider = FutureProvider.autoDispose.family<Uint8List?, ({String botId, String ref})>((
+  ref,
+  key,
+) async {
   final hub = ref.watch(dsBotProvider.notifier);
   final identity = ref.watch(dsBotProvider.select((s) => (s.host, s.hello?.boot, s.ready, hub.api)));
   final api = identity.$4;

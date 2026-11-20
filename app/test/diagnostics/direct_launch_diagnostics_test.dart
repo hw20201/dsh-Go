@@ -3,7 +3,6 @@ import 'package:dsh_app/l10n/l10n.dart';
 import 'package:dsh_app/runtime/runtime_bridge.dart';
 import 'package:dsh_app/runtime/runtime_state.dart';
 import 'package:dsh_app/state/settings_state.dart';
-import 'package:dsh_app/ui/engine/engine_screen.dart';
 import 'package:dsh_app/ui/engine/engine_status.dart';
 import 'package:dsh_app/ui/settings/diagnostics_page.dart';
 import 'package:dsh_app/ui/settings/settings_widgets.dart';
@@ -174,10 +173,8 @@ void main() {
     expect(RuntimeStatus.fromMap(const {'phase': 'starting'}).tidyingFiles, isFalse);
     final l10n = lookupL10n(AppLocale.zhCN);
     expect(EngineStatusView.of(LocalRuntimeState(status: tidying, loaded: true)).label, l10n.phoneEngineTidyingFiles);
-    expect(engineDetail(tidying), l10n.phoneEngineTidyingFilesEllipsis);
     final plain = RuntimeStatus.fromMap(const {'phase': 'starting'});
     expect(EngineStatusView.of(LocalRuntimeState(status: plain, loaded: true)).label, l10n.phoneEngineStarting);
-    expect(engineDetail(plain), l10n.phoneEngineStartingEllipsis);
   });
 
   testWidgets('launch rows line up with the card\'s other rows, 2dp apart', (tester) async {

@@ -13,7 +13,6 @@ import 'package:dsh_app/state/chat_state.dart';
 import 'package:dsh_app/state/quick_panel_state.dart';
 import 'package:dsh_app/ui/chat/chat_screen.dart';
 import 'package:dsh_app/ui/chat/render/code_block.dart';
-import 'package:dsh_app/ui/engine/engine_screen.dart';
 import 'package:dsh_app/ui/features/all_features_page.dart';
 import 'package:dsh_app/ui/plugins/plugins_screen.dart';
 import 'package:dsh_app/ui/remote/remote_screen.dart';
@@ -23,7 +22,6 @@ import 'package:dsh_app/ui/settings/settings_screen.dart';
 import 'package:dsh_app/ui/shell/home_shell.dart';
 import 'package:dsh_app/ui/shell/quick_panel.dart';
 import 'package:dsh_app/ui/shell/sessions_drawer.dart';
-import 'package:dsh_app/ui/web/local_web_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -480,7 +478,7 @@ void main() {
   });
 
   group('the rows', () {
-    testWidgets('an install that never chose anything: 插件, 本机引擎, 设置, in that order', (tester) async {
+    testWidgets('default shortcuts are plugins and settings, in that order', (tester) async {
       await _pump(tester);
       await _swipeOpen(tester);
       final rows = QuickPanelPrefs.defaultItems.map(_row).toList();
@@ -488,12 +486,10 @@ void main() {
         expect(row, findsOneWidget);
       }
       expect(tester.getTopLeft(rows[0]).dx, lessThan(tester.getTopLeft(rows[1]).dx));
-      expect(tester.getTopLeft(rows[1]).dx, lessThan(tester.getTopLeft(rows[2]).dx));
       expect(find.byTooltip('插件'), findsOneWidget);
-      expect(find.byTooltip('本机引擎'), findsOneWidget);
+      expect(find.byTooltip('本机引擎'), findsNothing);
       expect(find.byTooltip('设置'), findsOneWidget);
       for (final other in [
-        DrawerDestination.web,
         DrawerDestination.remote,
         DrawerDestination.settingsSearch,
         DrawerDestination.features,
@@ -503,10 +499,8 @@ void main() {
     });
 
     final pages = <DrawerDestination, Type>{
-      DrawerDestination.web: LocalWebScreen,
       DrawerDestination.remote: RemoteScreen,
       DrawerDestination.plugins: PluginsScreen,
-      DrawerDestination.engine: EngineScreen,
       DrawerDestination.settings: SettingsScreen,
       DrawerDestination.settingsSearch: SettingsSearchPage,
       DrawerDestination.features: AllFeaturesPage,
@@ -532,7 +526,7 @@ void main() {
 
     testWidgets('ids no destination answers to are dropped, repeats too; the order holds', (tester) async {
       SharedPreferences.setMockInitialValues({
-        QuickPanelController.itemsKey: ['settings', 'gone', 'dshgo://open/settings', 'web', 'settings'],
+        QuickPanelController.itemsKey: ['settings', 'gone', 'dshgo://open/settings', 'web', 'engine', 'remote', 'settings'],
       });
       await _pump(tester);
       await _swipeOpen(tester);
@@ -547,7 +541,7 @@ void main() {
           )
           .map((w) => (w.key! as ValueKey<String>).value)
           .toList();
-      expect(rows, ['quick-panel-settings', 'quick-panel-web']);
+      expect(rows, ['quick-panel-settings', 'quick-panel-remote']);
     });
   });
 

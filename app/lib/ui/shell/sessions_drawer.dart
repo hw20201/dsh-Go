@@ -12,12 +12,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/l10n.dart';
-import '../../runtime/runtime_bridge.dart';
-import '../../runtime/runtime_state.dart';
-import '../../runtime/local_footprint.dart';
 import '../../state/bots_state.dart';
 import '../../state/connection_state.dart';
-import '../../state/engine_control.dart';
 import '../../state/hosts_state.dart';
 import '../../state/drawer_view_state.dart';
 import '../../state/session_attention_state.dart';
@@ -33,13 +29,10 @@ import '../common/pressable.dart';
 import '../common/smooth_size.dart';
 import '../common/read_list_status.dart';
 import '../common/status_dot.dart';
-import '../onboarding/local_install.dart';
 import '../modes/mode_switch.dart';
 import '../remote/host_status.dart';
 import '../remote/host_switcher.dart' show showHostSheet;
 import '../remote/network_details_sheet.dart' show showRemoteNetworkDetails;
-import '../safe_mode/engine_failure_card.dart';
-import '../safe_mode/safe_mode_banner.dart';
 import '../share/share_entry.dart';
 import '../theme/app_icons.dart';
 import '../theme/theme.dart';
@@ -183,10 +176,6 @@ class SessionsDrawer extends ConsumerWidget {
                 ),
               ),
       ),
-      SafeModeBanner(
-        padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
-        onDetails: () => onOpen(DrawerDestination.engine),
-      ),
       SessionSearchBar(onClose: onClose),
       // The workspace switcher (once the host's workspace list has
       // arrived) and the list's options, then the status filters.
@@ -250,7 +239,6 @@ class SessionsDrawer extends ConsumerWidget {
                         excluding: selecting,
                         child: IdentityBar(
                           onHost: () => showHostSheet(context, onManage: () => onOpen(DrawerDestination.remote)),
-                          onLocalDetails: () => onOpen(DrawerDestination.engine),
                           onFeatures: () => onOpen(DrawerDestination.features),
                           onSettings: () => onOpen(DrawerDestination.settings),
                           onSettingsHold: () => onOpen(DrawerDestination.settingsSearch),
@@ -844,54 +832,16 @@ class _EmptyState extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = context.l10n;
     final host = ref.watch(activeHostProvider);
     if (!host.isLocal) return _RemoteEmptyState(host: host);
-    final status = ref.watch(localRuntimeProvider.select((s) => s.status));
-    if (EngineFailureCard.visibleFor(status)) {
-      return const SingleChildScrollView(padding: EdgeInsets.fromLTRB(10, 8, 10, 16), child: EngineFailureCard());
-    }
-    final view = switch (status.phase) {
-      RuntimePhase.running => EmptyView(
+    return _Centered(
+      child: EmptyView(
         compact: true,
         icon: AppIcons.chat,
-        title: l10n.shellNoChatsYet,
-        message: l10n.shellNewChatsHint,
+        title: appL10n.remoteWorkspaceNoChats,
+        message: appL10n.shellNewChatsHint,
       ),
-      RuntimePhase.starting => EmptyView(
-        compact: true,
-        icon: AppIcons.loading,
-        title: l10n.shellEngineStarting,
-        message: l10n.shellChatsAfterStarting,
-      ),
-      RuntimePhase.installed || RuntimePhase.error => EmptyView(
-        compact: true,
-        icon: AppIcons.power,
-        title: l10n.shellEngineNotRunning,
-        message: l10n.shellChatsAfterStarting,
-        actionLabel: l10n.shellStartEngine,
-        onAction: () => unawaited(EngineControl.ensureStarted(ProviderScope.containerOf(context))),
-      ),
-      RuntimePhase.notInstalled when status.runtimeMissing => switch (localMissingCopy(
-        l10n,
-        available: ref.watch(localRuntimeProvider.select((s) => s.available)),
-      )) {
-        final copy => EmptyView(
-          compact: true,
-          icon: AppIcons.thisPhone,
-          title: copy.title,
-          actionLabel: copy.action,
-          onAction: () => unawaited(openLocalInstall(context)),
-        ),
-      },
-      _ => EmptyView(
-        compact: true,
-        icon: AppIcons.power,
-        title: l10n.shellEngineNotRunning,
-        message: l10n.shellEngineStatusHint,
-      ),
-    };
-    return _Centered(child: view);
+    );
   }
 }
 
@@ -951,13 +901,9 @@ class IdentityBar extends ConsumerWidget {
     required this.onFeatures,
     required this.onSettings,
     this.onSettingsHold,
-    this.onLocalDetails,
   });
 
   final VoidCallback onHost;
-
-  /// Local hosts have engine details, not a remote network path.
-  final VoidCallback? onLocalDetails;
 
   /// 全部功能: what there is to do now. (网页版 is in 全部功能, in 设置 ›
   /// 界面 and on the brand row's switch.)
@@ -997,8 +943,8 @@ class IdentityBar extends ConsumerWidget {
                 const SizedBox(width: 6),
                 IconButton(
                   key: const ValueKey('identity-host-details'),
-                  tooltip: host.isLocal ? l10n.phoneEngineTitle : l10n.remoteNetworkDetails,
-                  onPressed: host.isLocal ? onLocalDetails : () => showRemoteNetworkDetails(context, host),
+                  tooltip: host.isLocal ? l10n.commonThisPhone : l10n.remoteNetworkDetails,
+                  onPressed: host.isLocal ? onHost : () => showRemoteNetworkDetails(context, host),
                   padding: const EdgeInsets.all(4),
                   constraints: const BoxConstraints.tightFor(width: keySize, height: keySize),
                   style: IconButton.styleFrom(tapTargetSize: MaterialTapTargetSize.shrinkWrap),

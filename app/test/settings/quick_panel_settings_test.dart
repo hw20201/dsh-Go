@@ -75,13 +75,13 @@ Future<void> _drag(WidgetTester tester, DrawerDestination destination, int rows)
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  testWidgets('an install that never chose anything: on, 插件、本机引擎、设置, nothing stored', (tester) async {
+  testWidgets('an install that never chose anything: on, 插件、设置, nothing stored', (tester) async {
     await _pump(tester);
     expect(
       tester.widget<Switch>(find.descendant(of: find.byKey(_swipeRow), matching: find.byType(Switch))).value,
       isTrue,
     );
-    expect(find.descendant(of: find.byKey(_itemsRow), matching: find.text('插件、本机引擎、设置')), findsOneWidget);
+    expect(find.descendant(of: find.byKey(_itemsRow), matching: find.text('插件、设置')), findsOneWidget);
     expect(await _stored(), isNull);
     expect((await SharedPreferences.getInstance()).getBool(QuickPanelController.swipeKey), isNull);
   });
@@ -105,9 +105,7 @@ void main() {
     await _openSheet(tester);
     expect(_rows(tester), [
       DrawerDestination.plugins,
-      DrawerDestination.engine,
       DrawerDestination.settings,
-      DrawerDestination.web,
       DrawerDestination.remote,
       DrawerDestination.settingsSearch,
       DrawerDestination.features,
@@ -120,26 +118,11 @@ void main() {
 
     await tester.tap(_sheetRow(DrawerDestination.remote));
     await _settle(tester);
-    expect(await _stored(), ['plugins', 'engine', 'settings', 'remote']);
-
-    await tester.tap(_sheetRow(DrawerDestination.engine));
-    await _settle(tester);
     expect(await _stored(), ['plugins', 'settings', 'remote']);
-    expect(_container(tester).read(quickPanelProvider).items, [
-      DrawerDestination.plugins,
-      DrawerDestination.settings,
-      DrawerDestination.remote,
-    ]);
-
-    // Unticked, a row stays where it is until the sheet is opened again.
-    expect(_rows(tester).take(2), [DrawerDestination.plugins, DrawerDestination.engine]);
-    await tester.tap(_sheetRow(DrawerDestination.engine));
-    await _settle(tester);
-    expect(await _stored(), ['plugins', 'engine', 'settings', 'remote']);
 
     await tester.binding.handlePopRoute();
     await _settle(tester);
-    expect(find.descendant(of: find.byKey(_itemsRow), matching: find.text('插件、本机引擎、设置、远程主机')), findsOneWidget);
+    expect(find.descendant(of: find.byKey(_itemsRow), matching: find.text('插件、设置、远程主机')), findsOneWidget);
   });
 
   testWidgets('the handle reorders; what is ticked is stored in the rows\' order', (tester) async {
@@ -147,23 +130,23 @@ void main() {
     await _openSheet(tester);
 
     await _drag(tester, DrawerDestination.settings, -2);
-    expect(_rows(tester).take(3), [DrawerDestination.settings, DrawerDestination.plugins, DrawerDestination.engine]);
-    expect(await _stored(), ['settings', 'plugins', 'engine']);
+    expect(_rows(tester).take(2), [DrawerDestination.settings, DrawerDestination.plugins]);
+    expect(await _stored(), ['settings', 'plugins']);
 
     // An unticked row moved up, then ticked, takes the place it was put in.
-    await _drag(tester, DrawerDestination.features, -5);
+    await _drag(tester, DrawerDestination.features, -3);
     expect(_rows(tester).take(3), [DrawerDestination.settings, DrawerDestination.features, DrawerDestination.plugins]);
-    expect(await _stored(), ['settings', 'plugins', 'engine']);
+    expect(await _stored(), ['settings', 'plugins']);
     await tester.tap(_sheetRow(DrawerDestination.features));
     await _settle(tester);
-    expect(await _stored(), ['settings', 'features', 'plugins', 'engine']);
+    expect(await _stored(), ['settings', 'features', 'plugins']);
     expect(_container(tester).read(quickPanelProvider).items.first, DrawerDestination.settings);
   });
 
   testWidgets('nothing ticked: the row says so and there is no panel; ticking brings it back', (tester) async {
     await _pump(tester);
     await _openSheet(tester);
-    for (final d in [DrawerDestination.plugins, DrawerDestination.engine, DrawerDestination.settings]) {
+    for (final d in QuickPanelPrefs.defaultItems) {
       await tester.tap(_sheetRow(d));
       await _settle(tester);
     }
@@ -175,9 +158,9 @@ void main() {
     expect(find.descendant(of: find.byKey(_itemsRow), matching: find.text('没有选择，左滑不会打开')), findsOneWidget);
 
     await _openSheet(tester);
-    await tester.tap(_sheetRow(DrawerDestination.web));
+    await tester.tap(_sheetRow(DrawerDestination.remote));
     await _settle(tester);
-    expect(await _stored(), ['web']);
+    expect(await _stored(), ['remote']);
     expect(_container(tester).read(quickPanelProvider).available, isTrue);
   });
 
@@ -217,9 +200,9 @@ void main() {
 
     test('an id nothing answers to is dropped, a repeat too, the order kept', () async {
       SharedPreferences.setMockInitialValues({
-        QuickPanelController.itemsKey: ['features', 'gone', 'web', 'features', ''],
+        QuickPanelController.itemsKey: ['features', 'gone', 'web', 'engine', 'remote', 'features', ''],
       });
-      expect((await load(container())).items, [DrawerDestination.features, DrawerDestination.web]);
+      expect((await load(container())).items, [DrawerDestination.features, DrawerDestination.remote]);
     });
 
     test('nothing left is nothing, not the defaults: the person chose those', () async {
@@ -232,22 +215,20 @@ void main() {
     test('a change made while the stored values load is not undone by them', () async {
       SharedPreferences.setMockInitialValues({
         QuickPanelController.swipeKey: true,
-        QuickPanelController.itemsKey: ['web'],
+        QuickPanelController.itemsKey: ['remote'],
       });
       final c = container();
       c.read(quickPanelProvider);
       await c.read(quickPanelProvider.notifier).setSwipe(false);
       expect(c.read(quickPanelProvider).swipe, isFalse);
-      expect(c.read(quickPanelProvider).items, [DrawerDestination.web]);
+      expect(c.read(quickPanelProvider).items, [DrawerDestination.remote]);
     });
   });
 
   test('every destination has a stable id and they stay what storage holds', () {
     expect(DrawerDestination.values.map((d) => d.name), [
-      'web',
       'remote',
       'plugins',
-      'engine',
       'settings',
       'settingsSearch',
       'features',

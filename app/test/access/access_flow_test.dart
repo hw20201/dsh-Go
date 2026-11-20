@@ -46,8 +46,7 @@ Future<ProviderContainer> _pump(
   return ProviderScope.containerOf(tester.element(find.byType(MaterialApp)));
 }
 
-String _primaryLabel(WidgetTester tester) =>
-    (tester.widget<FilledButton>(find.byKey(_primary)).child! as Text).data!;
+String _primaryLabel(WidgetTester tester) => (tester.widget<FilledButton>(find.byKey(_primary)).child! as Text).data!;
 
 Future<void> _tapPrimary(WidgetTester tester) async {
   await tester.ensureVisible(find.byKey(_primary));
@@ -78,22 +77,18 @@ void main() {
       await _tapText(tester, '跳过');
       expect(done, 1);
       final prefs = await SharedPreferences.getInstance();
-      expect(prefs.containsKey(onboardingWantsVoiceKey), isFalse);
+      expect(prefs.containsKey('onboarding_wants_voice'), isFalse);
       expect(prefs.containsKey(AccessSetupController.prefsKey), isFalse);
     });
 
-    testWidgets('voice says its download before it is picked', (tester) async {
-      await _pump(tester, AccessStepPage(onDone: () {}), FakeAccessDriver(offPhone));
-      expect(find.text('需要麦克风权限'), findsOneWidget);
-      expect(find.text('离线识别，需下载约 241 MB 语音模型'), findsOneWidget);
-      expect(find.text('当前是移动数据，下载会消耗流量'), findsNothing);
-    });
-
-    testWidgets('…and that it would use mobile data, when on it', (tester) async {
-      await _pump(tester, AccessStepPage(onDone: () {}), FakeAccessDriver(readingsWith(offPhone, metered: true)));
-      expect(find.text('离线识别，需下载约 241 MB 语音模型'), findsOneWidget);
-      expect(find.text('当前是移动数据，下载会消耗流量'), findsOneWidget);
-    });
+    for (final metered in [false, true]) {
+      testWidgets('voice asks for microphone permission without local downloads (metered: $metered)', (tester) async {
+        await _pump(tester, AccessStepPage(onDone: () {}), FakeAccessDriver(readingsWith(offPhone, metered: metered)));
+        expect(find.text('需要麦克风权限'), findsOneWidget);
+        expect(find.text('离线识别，需下载约 241 MB 语音模型'), findsNothing);
+        expect(find.text('当前是移动数据，下载会消耗流量'), findsNothing);
+      });
+    }
 
     testWidgets('手机操控 shows its disclosure first; not now leaves it unpicked', (tester) async {
       final c = await _pump(tester, AccessStepPage(onDone: () {}), FakeAccessDriver(offPhone));
@@ -202,18 +197,21 @@ void main() {
         ('允许自启动', '去设置'),
       ]) {
         expect(
-          find.descendant(of: find.ancestor(of: find.text(title), matching: find.byType(InkWell)), matching: find.text(state)),
+          find.descendant(
+            of: find.ancestor(of: find.text(title), matching: find.byType(InkWell)),
+            matching: find.text(state),
+          ),
           findsOneWidget,
           reason: title,
         );
       }
-      expect(find.text('语音模型（约 241 MB）会在引擎就绪后开始下载，进度在「设置 › 通用 › 语音输入」里查看'), findsOneWidget);
+      expect(find.byKey(const ValueKey('access-voice')), findsNothing);
 
       await tester.tap(find.byKey(const ValueKey('access-summary-done')));
       await _frames(tester);
       expect(done, 1);
       final prefs = await SharedPreferences.getInstance();
-      expect(prefs.getBool(onboardingWantsVoiceKey), isTrue);
+      expect(prefs.containsKey('onboarding_wants_voice'), isFalse);
       expect(prefs.containsKey(AccessSetupController.prefsKey), isFalse);
       expect(prefs.getStringList(AccessVisitedController.prefsKey), ['vendorBackground']);
     });

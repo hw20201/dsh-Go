@@ -12,6 +12,17 @@ Widget _host(Widget child, {bool reduced = false}) => MaterialApp(
 );
 
 void main() {
+  testWidgets('a crisp still avatar settles onto its asynchronously baked frame', (tester) async {
+    await tester.pumpWidget(_host(const BotAvatar(id: 'async-still-frame', shading: BotAvatarShading.crisp, size: 47)));
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+    await tester.pump();
+    final customPaint = tester.widget<CustomPaint>(
+      find.descendant(of: find.byType(BotAvatar), matching: find.byType(CustomPaint)),
+    );
+    expect(customPaint.painter.runtimeType.toString(), '_StillPainter');
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('a working avatar animates, an idle one is a still frame', (tester) async {
     /* crisp needs no bake, so the still path is taken at once */
     await tester.pumpWidget(_host(const BotAvatar(id: 'a', shading: BotAvatarShading.crisp, size: 48)));

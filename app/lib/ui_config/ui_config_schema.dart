@@ -161,7 +161,6 @@ abstract final class UiSchema {
     'remote',
     'phone',
     'system-actions',
-    'engine',
     'diagnostics',
     'web',
     'new-chat',

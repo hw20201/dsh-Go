@@ -22,21 +22,17 @@ import '../../state/sessions_state.dart' show currentSessionProvider;
 import '../bots/bot_alerts.dart';
 import '../chat/chat_screen.dart';
 import '../chat/composer_toast.dart' show composerToastGap;
-import '../engine/engine_screen.dart';
-import '../engine/reset_outcome.dart';
 import '../features/all_features_page.dart';
 import '../forum/forum_link_host.dart';
 import '../notify/background_net_host.dart';
 import '../notify/background_pause_host.dart';
 import '../notify/chat_alert_host.dart';
-import '../notify/voice_model_host.dart';
 import '../plugins/plugins_screen.dart';
 import '../pets/pet_settings_page.dart';
 import '../phone/phone_stop_watcher.dart';
 import '../phone/system_actions_host.dart';
 import '../remote/host_switcher.dart' show showHostSheet;
 import '../remote/remote_screen.dart';
-import '../safe_mode/safe_mode_notice_listener.dart';
 import '../session/session_detail_page.dart';
 import '../settings/search/settings_search_page.dart';
 import '../settings/settings_screen.dart';
@@ -46,7 +42,6 @@ import '../star/star_prompt_host.dart';
 import '../theme/theme.dart';
 import '../update/update_launch_check.dart';
 import '../wallpaper/wallpaper_backdrop.dart';
-import '../web/local_web_screen.dart';
 import 'adaptive/adaptive_layout.dart';
 import 'adaptive/adaptive_rail.dart';
 import 'adaptive/adaptive_scaffold.dart';
@@ -234,10 +229,8 @@ class _HomeShellState extends ConsumerState<HomeShell> with TickerProviderStateM
 
   void _openDestination(DrawerDestination destination) {
     final page = switch (destination) {
-      DrawerDestination.web => const LocalWebScreen(),
       DrawerDestination.remote => const RemoteScreen(),
       DrawerDestination.plugins => const PluginsScreen(),
-      DrawerDestination.engine => const EngineScreen(),
       DrawerDestination.settings => const SettingsScreen(),
       DrawerDestination.settingsSearch => const SettingsSearchPage(),
       DrawerDestination.features => const AllFeaturesPage(),
@@ -311,9 +304,8 @@ class _HomeShellState extends ConsumerState<HomeShell> with TickerProviderStateM
     final chat = widget.chatBuilder?.call(_onMenu) ?? ChatScreen(onOpenDrawer: _onMenu, backdrop: false);
     // The floating pet outside the app hears every pet state.
     ref.listen<void>(petOverlayBridgeProvider, (_, _) {});
-    return SafeModeNoticeListener(
-      child: PhoneStopWatcher(
-        child: PopScope(
+    return PhoneStopWatcher(
+      child: PopScope(
           canPop: !_open && !_quickPanelOpen && !(selecting && sidebar),
           onPopInvokedWithResult: (didPop, _) {
             if (didPop) return;
@@ -352,14 +344,10 @@ class _HomeShellState extends ConsumerState<HomeShell> with TickerProviderStateM
                         if (ref.watch(operatingSystemProvider) == 'ohos') ...[
                           // 系统操作: its session and a handoff's prompt (draws nothing here).
                           const SystemActionsHost(),
-                          // How a reset asked for before the app reopened came out (draws nothing).
-                          const ResetReceiptHost(),
                         ],
                       ],
                       // Daily update check + install resume (draws nothing).
                       const UpdateLaunchCheck(),
-                      // The voice model chosen during setup: download, resume, ready / failed notices (draws nothing).
-                      const VoiceModelHost(),
                       // 公测版: once in a while, an invitation to star the project (draws nothing).
                       StarPromptHost(drawer: _drawer, quickPanel: _quickPanel),
                       // App links / shared files: routes them to their feature (draws nothing).
@@ -406,7 +394,6 @@ class _HomeShellState extends ConsumerState<HomeShell> with TickerProviderStateM
                               onSearch: _search,
                               onHost: () =>
                                   showHostSheet(context, onManage: () => _openDestination(DrawerDestination.remote)),
-                              onWeb: () => _openDestination(DrawerDestination.web),
                               onSettings: () => _openDestination(DrawerDestination.settings),
                             ),
                             panel: layout.panelAvailable && sessionId != null
@@ -458,7 +445,6 @@ class _HomeShellState extends ConsumerState<HomeShell> with TickerProviderStateM
             ),
           ),
         ),
-      ),
     );
   }
 }

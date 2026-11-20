@@ -49,7 +49,6 @@ import '../../state/connection_state.dart';
 import '../../state/hosts_state.dart';
 import '../../state/sessions_state.dart';
 import '../../state/settings_state.dart';
-import '../../state/voice_model_state.dart';
 import '../../state/voice_settings.dart';
 import '../../state/voice_state.dart';
 import '../../usage/usage_stats.dart';
@@ -330,10 +329,6 @@ class _CompanionPageState extends ConsumerState<CompanionPage> implements Compan
       mode: () => ref.read(voiceSettingsProvider.notifier).ready(),
       cloud: (mode) => ref.read(voiceCloudProvider)(mode),
       cloudLikely: () => ref.read(voiceCloudLikelyProvider)(),
-      modelReady: () =>
-          mounted &&
-          (ref.read(activeConnectionProvider).value?.isLocal ?? false) &&
-          ref.read(voiceModelProvider).status == VoiceModelStatus.ready,
       client: () => mounted ? ref.read(activeConnectionProvider).value?.client : null,
       onRecognized: () {
         final current = _currentRoom();

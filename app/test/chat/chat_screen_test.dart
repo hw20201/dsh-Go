@@ -153,14 +153,15 @@ void main() {
     expect(find.text('对话同步中断'), findsOneWidget);
   });
 
-  testWidgets('local startup has its own header and empty-state copy', (tester) async {
+  testWidgets('local startup is not surfaced in chat', (tester) async {
     usePhoneView(tester);
     final harness = ChatHarness(connected: false, runtime: _StartingRuntime.new);
     await tester.pumpWidget(testApp(const ChatScreen(), overrides: [...harness.overrides]));
     await pumpFrames(tester);
-    expect(find.text('正在启动'), findsOneWidget);
-    expect(find.text('正在启动引擎…'), findsOneWidget);
-    expect(find.text('未连接'), findsNothing);
+    expect(find.byType(ChatScreen), findsOneWidget);
+    expect(find.text('正在启动'), findsNothing);
+    expect(find.text('正在启动引擎…'), findsNothing);
+    expect(find.text('启动引擎'), findsNothing);
   });
 
   testWidgets('a failed local connection offers reconnect', (tester) async {

@@ -23,6 +23,9 @@ const maxRemoteArtifactBytes = 300 * 1024 * 1024;
 /// Largest remote image fetched just to draw a thumbnail.
 const maxThumbnailBytes = 8 * 1024 * 1024;
 
+/// Maximum total size of completed remote artifact cache entries.
+const maxArtifactCacheBytes = 512 * 1024 * 1024;
+
 /// Why an artifact action could not run (beyond Host and platform errors).
 class ArtifactError implements Exception {
   const ArtifactError(this.code);
@@ -69,19 +72,27 @@ class ArtifactFiles {
     Future<void> Function(ShareParams params)? share,
     Future<Directory> Function()? cacheRoot,
     String? operatingSystem,
+    int maxCacheBytes = maxArtifactCacheBytes,
   }) : _share = share ?? _systemShare,
        _cacheRoot = cacheRoot ?? getTemporaryDirectory,
-       _operatingSystem = operatingSystem ?? Platform.operatingSystem;
+       _operatingSystem = operatingSystem ?? Platform.operatingSystem,
+       // The public parameter name intentionally differs from the private field.
+       // ignore: prefer_initializing_formals
+       _maxCacheBytes = maxCacheBytes;
 
   final HostConnection? connection;
   final FilesChannel channel;
   final Future<void> Function(ShareParams params) _share;
   final Future<Directory> Function() _cacheRoot;
   final String _operatingSystem;
+  final int _maxCacheBytes;
 
   static Future<void> _systemShare(ShareParams params) async {
     await SharePlus.instance.share(params);
   }
+
+  static final _trimQueues = <String, Future<void>>{};
+  static final _cacheLeases = <String, int>{};
 
   bool get isLocal => connection?.isLocal ?? false;
 
@@ -103,7 +114,7 @@ class ArtifactFiles {
     final client = conn.client;
     final stat = await client.statFile(sessionId, artifact.path);
     final root = await _cacheRoot();
-    final key = _fnv('pdf\n${conn.hostId ?? conn.label}\n$sessionId\n${artifact.path}');
+    final key = _fnv(_pdfCacheKey(conn, sessionId, artifact));
     final dir = Directory('${root.path}/artifacts/$key');
     // 纪要.docx → 纪要.pdf: swapping the extension keeps a name the phone could
     // already store within its 255-byte limit (appending .pdf might not).
@@ -124,6 +135,7 @@ class ArtifactFiles {
       await part.writeAsBytes(rendered.pdf, flush: true);
       part.renameSync(target.path);
       marker.writeAsStringSync(stat.version);
+      await _trimArtifactCache(root, dir, _maxCacheBytes);
       return target;
     } finally {
       await staging.delete(recursive: true);
@@ -137,6 +149,14 @@ class ArtifactFiles {
     Artifact artifact, {
     void Function(double? progress)? onProgress,
     int maxBytes = maxRemoteArtifactBytes,
+  }) => _materialize(sessionId, artifact, onProgress: onProgress, maxBytes: maxBytes);
+
+  Future<File> _materialize(
+    String sessionId,
+    Artifact artifact, {
+    void Function(double? progress)? onProgress,
+    required int maxBytes,
+    Directory? rootOverride,
   }) async {
     final conn = connection;
     if (conn == null) throw const ArtifactError('offline');
@@ -152,8 +172,8 @@ class ArtifactFiles {
     if (!client.canReadFileBytes) throw const ArtifactError('unsupported');
     final stat = await client.statFile(sessionId, artifact.path);
     if (stat.bytes != null && stat.bytes! > maxBytes) throw const ArtifactError('workspace-file/too-large');
-    final root = await _cacheRoot();
-    final key = _fnv('${conn.hostId ?? conn.label}\n$sessionId\n${artifact.path}');
+    final root = rootOverride ?? await _cacheRoot();
+    final key = _fnv(_artifactCacheKey(conn, sessionId, artifact));
     final dir = Directory('${root.path}/artifacts/$key');
     final target = File('${dir.path}/${_safeName(artifact.name)}');
     final marker = File('${dir.path}/.version');
@@ -191,6 +211,7 @@ class ArtifactFiles {
       // another completed download cannot pair this version with its bytes.
       part.renameSync(target.path);
       marker.writeAsStringSync(stat.version);
+      await _trimArtifactCache(root, dir, _maxCacheBytes);
       return target;
     } finally {
       await staging.delete(recursive: true);
@@ -205,25 +226,71 @@ class ArtifactFiles {
     bool chooser = false,
     void Function(double?)? onProgress,
   }) async {
-    final file = await materialize(sessionId, artifact, onProgress: onProgress);
-    await channel.open(file.path, name: artifact.name, mime: artifact.mimeType, chooser: chooser);
+    final lease = await _leaseArtifactCache(sessionId, artifact);
+    try {
+      final file = await _materialize(
+        sessionId,
+        artifact,
+        onProgress: onProgress,
+        maxBytes: maxRemoteArtifactBytes,
+        rootOverride: lease?.root,
+      );
+      await channel.open(file.path, name: artifact.name, mime: artifact.mimeType, chooser: chooser);
+    } finally {
+      await lease?.release();
+    }
   }
 
   /// The system share sheet with the file.
   Future<void> share(String sessionId, Artifact artifact, {void Function(double?)? onProgress}) async {
-    final file = await materialize(sessionId, artifact, onProgress: onProgress);
-    await _share(
-      ShareParams(
-        files: [XFile(file.path, mimeType: artifact.mimeType, name: artifact.name)],
-        fileNameOverrides: [artifact.name],
-      ),
-    );
+    final lease = await _leaseArtifactCache(sessionId, artifact);
+    try {
+      final file = await _materialize(
+        sessionId,
+        artifact,
+        onProgress: onProgress,
+        maxBytes: maxRemoteArtifactBytes,
+        rootOverride: lease?.root,
+      );
+      await _share(
+        ShareParams(
+          files: [XFile(file.path, mimeType: artifact.mimeType, name: artifact.name)],
+          fileNameOverrides: [artifact.name],
+        ),
+      );
+    } finally {
+      await lease?.release();
+    }
   }
 
   /// Copies the file into the phone's public Downloads; returns where.
   Future<String> saveToDownloads(String sessionId, Artifact artifact, {void Function(double?)? onProgress}) async {
-    final file = await materialize(sessionId, artifact, onProgress: onProgress);
-    return channel.saveToDownloads(file.path, name: artifact.name, mime: artifact.mimeType);
+    final lease = await _leaseArtifactCache(sessionId, artifact);
+    try {
+      final file = await _materialize(
+        sessionId,
+        artifact,
+        onProgress: onProgress,
+        maxBytes: maxRemoteArtifactBytes,
+        rootOverride: lease?.root,
+      );
+      return await channel.saveToDownloads(file.path, name: artifact.name, mime: artifact.mimeType);
+    } finally {
+      await lease?.release();
+    }
+  }
+
+  Future<_ArtifactCacheLease?> _leaseArtifactCache(String sessionId, Artifact artifact) async {
+    final conn = connection;
+    if (conn == null) return null;
+    final sessionCopy = conn.isLocal && _operatingSystem == 'ohos' && artifact.path.startsWith('/workspaces/');
+    if (conn.isLocal && !sessionCopy) return null;
+    final root = await _cacheRoot();
+    final directory = Directory('${root.path}/artifacts/${_fnv(_artifactCacheKey(conn, sessionId, artifact))}');
+    await _withCacheQueue(root.path, () async {
+      _cacheLeases.update(directory.path, (count) => count + 1, ifAbsent: () => 1);
+    });
+    return _ArtifactCacheLease(root, directory);
   }
 
   /// A small image of [artifact] for its card; null when it is not an image
@@ -246,6 +313,98 @@ class ArtifactFiles {
     return FileImage(file);
   }
 }
+
+Future<void> _trimArtifactCache(Directory root, Directory keep, int limit) async {
+  if (limit < 0) return;
+  await _withCacheQueue(root.path, () async {
+    final cache = Directory('${root.path}/artifacts');
+    try {
+      if (!await cache.exists()) return;
+      final entries = <({Directory directory, int bytes, DateTime modified})>[];
+      var total = 0;
+      await for (final entity in cache.list(followLinks: false)) {
+        if (entity is! Directory) continue;
+        var active = false;
+        var bytes = 0;
+        try {
+          await for (final child in entity.list(recursive: true, followLinks: false)) {
+            if (child is Directory && child.path.split(Platform.pathSeparator).last.startsWith('.part-')) {
+              active = true;
+            } else if (child is File) {
+              bytes += await child.length();
+            }
+          }
+          if (entity.path == keep.path || active || ArtifactFiles._cacheLeases.containsKey(entity.path)) {
+            total += bytes;
+            continue;
+          }
+          final modified = (await entity.stat()).modified;
+          total += bytes;
+          entries.add((directory: entity, bytes: bytes, modified: modified));
+        } on FileSystemException {
+          // Another process may remove an entry between listing and inspection.
+        }
+      }
+      if (total <= limit) return;
+      entries.sort((a, b) => a.modified.compareTo(b.modified));
+      for (final entry in entries) {
+        if (total <= limit) break;
+        try {
+          await entry.directory.delete(recursive: true);
+          total -= entry.bytes;
+        } on FileSystemException {
+          // A concurrent reader or writer may have removed or replaced it.
+        }
+      }
+    } on FileSystemException {
+      // The cache root itself can disappear while the scan is in progress.
+    }
+  });
+}
+
+Future<T> _withCacheQueue<T>(String root, Future<T> Function() action) {
+  final previous = ArtifactFiles._trimQueues[root] ?? Future<void>.value();
+  final done = Completer<void>();
+  ArtifactFiles._trimQueues[root] = done.future;
+  return () async {
+    await previous;
+    try {
+      return await action();
+    } finally {
+      done.complete();
+      if (identical(ArtifactFiles._trimQueues[root], done.future)) {
+        ArtifactFiles._trimQueues.remove(root);
+      }
+    }
+  }();
+}
+
+class _ArtifactCacheLease {
+  _ArtifactCacheLease(this.root, this.directory);
+
+  final Directory root;
+  final Directory directory;
+  bool _released = false;
+
+  Future<void> release() async {
+    if (_released) return;
+    _released = true;
+    await _withCacheQueue(root.path, () async {
+      final count = ArtifactFiles._cacheLeases[directory.path]! - 1;
+      if (count == 0) {
+        ArtifactFiles._cacheLeases.remove(directory.path);
+      } else {
+        ArtifactFiles._cacheLeases[directory.path] = count;
+      }
+    });
+  }
+}
+
+String _artifactCacheKey(HostConnection conn, String sessionId, Artifact artifact) =>
+    '${conn.hostId ?? conn.label}\n$sessionId\n${artifact.path}';
+
+String _pdfCacheKey(HostConnection conn, String sessionId, Artifact artifact) =>
+    'pdf\n${conn.hostId ?? conn.label}\n$sessionId\n${artifact.path}';
 
 String _safeName(String name) {
   final cleaned = name.replaceAll(RegExp(r'[\x00-\x1f/\\:*?"<>|]'), '_').trim();

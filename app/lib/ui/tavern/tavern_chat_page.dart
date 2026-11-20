@@ -20,7 +20,6 @@ import '../../speech/voice_cloud.dart';
 import '../speech/speech_ui.dart';
 import '../../state/connection_state.dart';
 import '../../state/settings_state.dart';
-import '../../state/voice_model_state.dart';
 import '../../state/voice_settings.dart';
 import '../../state/voice_state.dart';
 import '../../tavern/tavern_backgrounds.dart';
@@ -325,9 +324,6 @@ class _TavernChatPageState extends ConsumerState<TavernChatPage> {
       mode: () => ref.read(voiceSettingsProvider.notifier).ready(),
       cloud: (mode) => ref.read(voiceCloudProvider)(mode),
       cloudLikely: () => ref.read(voiceCloudLikelyProvider)(),
-      // The voice model lives in the on-device engine: it counts for that host only.
-      modelReady: () =>
-          (_connection?.isLocal ?? false) && ref.read(voiceModelProvider).status == VoiceModelStatus.ready,
       client: () => _connection?.client,
     );
     _voiceFlag = ref.read(voiceInputActiveProvider.notifier);

@@ -1,19 +1,11 @@
-// Settings rows are measured, not eyeballed:
-// the icon disc on the left and the switch track / chevron ink / bare value on
-// the right sit the same 16dp from the card's edges; single-line rows are 52
-// tall, two-line rows 64; the overview card's avatar sits as far from the top
-// as from the left, its footer dot is centred under the avatar and the footer
-// text starts where the title does; the engine's three capsules share the
-// width evenly.
+// The overview card and settings rows are measured, not eyeballed.
 
-import 'package:dsh_app/runtime/runtime_bridge.dart';
 import 'package:dsh_app/runtime/runtime_state.dart';
 import 'package:dsh_app/ui/common/app_sheet.dart';
 import 'package:dsh_app/ui/common/list_page_row.dart';
 import 'package:dsh_app/ui/common/overview_card.dart';
 import 'package:dsh_app/ui/common/sheet_title_bar.dart';
 import 'package:dsh_app/ui/common/status_chip.dart';
-import 'package:dsh_app/ui/engine/engine_screen.dart';
 import 'package:dsh_app/ui/settings/background_guide_page.dart';
 import 'package:dsh_app/ui/settings/settings_widgets.dart';
 import 'package:dsh_app/ui/theme/app_icons.dart';
@@ -167,29 +159,6 @@ void main() {
       }
     });
   }
-
-  testWidgets('engine actions: three equal capsules, flush with the gutters', (tester) async {
-    await _pump(
-      tester,
-      const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16),
-        child: EngineActions(phase: RuntimePhase.running),
-      ),
-    );
-    final labels = ['启动', '停止', '重启'];
-    final boxes = [
-      for (final l in labels)
-        tester.getRect(find.ancestor(of: find.text(l), matching: find.byType(AnimatedContainer)).first),
-    ];
-    expect(boxes.first.left, moreOrLessEquals(16, epsilon: _tol));
-    expect(390 - boxes.last.right, moreOrLessEquals(16, epsilon: _tol));
-    for (final b in boxes) {
-      expect(b.width, moreOrLessEquals(boxes.first.width, epsilon: _tol));
-      expect(b.height, EngineActions.height);
-    }
-    expect(boxes[1].left - boxes[0].right, moreOrLessEquals(EngineActions.gap, epsilon: _tol));
-    expect(boxes[2].left - boxes[1].right, moreOrLessEquals(EngineActions.gap, epsilon: _tol));
-  });
 
   testWidgets('group titles share style, page gutter and header semantics', (tester) async {
     final semantics = tester.ensureSemantics();

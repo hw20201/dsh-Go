@@ -81,7 +81,7 @@ final _vivoWalk = accessWalk({AccessFeature.voice, AccessFeature.background}, 'v
 
 final _summaryReadings = readingsWith(offPhone, mic: true, notifications: true, battery: true, accessibility: true);
 
-Widget _summary() => _beside(AccessSummaryPage(items: accessWalk(AccessFeature.values, 'vivo'), voice: true, onDone: () {}));
+Widget _summary() => _beside(AccessSummaryPage(items: accessWalk(AccessFeature.values, 'vivo'), onDone: () {}));
 
 void main() {
   goldenBoth('access_pick', _pick, overrides: _with(offPhone));

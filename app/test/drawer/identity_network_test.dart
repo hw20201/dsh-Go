@@ -40,7 +40,6 @@ Future<ProviderContainer> _pump(
   HostLinkStatus status = const HostLinkStatus(HostLinkPhase.connected),
   Stream<HostLinkStatus> changes = const Stream.empty(),
   VoidCallback? onHost,
-  VoidCallback? onLocalDetails,
   VoidCallback? onWatchLink,
   double scale = 1,
 }) async {
@@ -70,7 +69,6 @@ Future<ProviderContainer> _pump(
                 width: 320,
                 child: IdentityBar(
                   onHost: onHost ?? () {},
-                  onLocalDetails: onLocalDetails,
                   onFeatures: () {},
                   onSettings: () {},
                 ),
@@ -168,27 +166,24 @@ void main() {
     expect(tester.widget<FilledButton>(find.byType(FilledButton)).onPressed, isNull);
   });
 
-  testWidgets('local icon opens engine details without consulting a remote link', (tester) async {
-    var localDetails = 0;
+  testWidgets('an unselected remote host opens the host chooser, not engine details', (tester) async {
     var switches = 0;
     var linkWatches = 0;
     await _pump(
       tester,
       host: HostRef.local,
       onHost: () => switches++,
-      onLocalDetails: () => localDetails++,
       onWatchLink: () => linkWatches++,
     );
-    expect(find.byTooltip('本机引擎'), findsOneWidget);
+    expect(find.byTooltip('本机引擎'), findsNothing);
     expect(find.byTooltip('网络详情'), findsNothing);
     await tester.tap(find.byKey(_detailsKey));
     await _frames(tester);
-    expect(localDetails, 1);
-    expect(switches, 0);
+    expect(switches, 1);
     expect(linkWatches, 0);
     expect(find.byType(RemoteNetworkDetailsSheet), findsNothing);
     await tester.tap(find.byKey(_switcherKey));
-    expect(switches, 1);
+    expect(switches, 2);
   });
 
   testWidgets('SSH details do not claim automatic routing or expose a synthetic P2P measurement', (tester) async {

@@ -15,9 +15,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/l10n.dart';
 import '../../notify/chat_alerts.dart' show approvalText, questionText;
-import '../../runtime/local_footprint.dart' show RuntimeMissing;
-import '../../runtime/runtime_bridge.dart' show RuntimePhase;
-import '../../runtime/runtime_state.dart' show localRuntimeProvider;
 import '../../speech/read_aloud.dart';
 import '../../speech/voice_cloud.dart';
 import '../../state/android_features.dart';
@@ -41,7 +38,6 @@ import '../../state/composer_quote.dart';
 import '../../state/connection_state.dart';
 import '../../state/draft_store.dart';
 import '../../state/drawer_view_state.dart';
-import '../../state/engine_control.dart';
 import '../../state/engine_settings_state.dart' show engineSettingsProvider;
 import '../../state/features_state.dart' show agentPresetsProvider, permissionStateProvider;
 import '../../state/hosts_state.dart' show HostKind, HostRef, activeHostProvider;
@@ -56,7 +52,6 @@ import '../../state/sessions_state.dart';
 import '../../state/settings_state.dart';
 import '../../state/usage_state.dart';
 import '../../state/voice_state.dart';
-import '../../state/voice_model_state.dart';
 import '../../state/voice_settings.dart';
 import '../../state/workspaces_state.dart' show selectedWorkspaceProvider, workspaceTitle;
 import '../../usage/usage_stats.dart';
@@ -69,15 +64,12 @@ import '../common/smooth_size.dart';
 import '../common/status_dot.dart';
 import '../features/all_features_page.dart';
 import '../features/session_export_page.dart';
-import '../onboarding/local_install.dart';
 import '../pets/pet_perch.dart';
 import '../pets/pet_stage.dart';
 import '../plugins/native/composer_strip.dart' show ComposerStripSlot;
 import '../plugins/native/native_composer_bar.dart';
 import '../plugins/native/native_taps.dart' show NativeComposerHost, NativeComposerScope, runNativeAction;
 import '../plugins/seats/plugin_overlay_layer.dart';
-import '../safe_mode/engine_failure_card.dart';
-import '../safe_mode/safe_mode_banner.dart';
 import '../session/session_detail_page.dart';
 import '../settings/media_settings_page.dart' show MediaSettingsPage, showMediaInstallSheet, showMediaUnavailableSheet;
 import '../settings/settings_widgets.dart' show SettingsTile;
@@ -391,11 +383,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
           return null;
         }
       },
-      // The voice model lives in the on-device engine: it counts for that host only.
-      modelReady: () =>
-          mounted &&
-          (ref.read(activeConnectionProvider).value?.isLocal ?? false) &&
-          ref.read(voiceModelProvider).status == VoiceModelStatus.ready,
       // The capability probe is async and can finish after this page is gone.
       client: () => mounted ? ref.read(activeConnectionProvider).value?.client : null,
       inputOwner: () => mounted ? ref.read(activeHostProvider) : null,
@@ -403,12 +390,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
         if (mounted) ref.read(usageStatsProvider.notifier).count(UsageCount.voice);
       },
     );
-    // A download or deletion changes capabilities without replacing the host.
-    ref.listenManual(voiceModelProvider.select((s) => s.status == VoiceModelStatus.ready), (_, _) {
-      if (mounted && (ref.read(activeConnectionProvider).value?.isLocal ?? false)) {
-        unawaited(_voice.refreshAfterModelChange());
-      }
-    });
     _voiceFlag = ref.read(voiceInputActiveProvider.notifier);
     _voice.addListener(_reportVoice);
     _draftKey = ref.read(currentSessionProvider) ?? 'new';
@@ -1588,48 +1569,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     final connAsync = ref.watch(activeConnectionProvider);
     final conn = connAsync.value;
     final connected = conn != null;
-    final local = ref.watch(activeHostProvider.select((h) => h.kind == HostKind.local));
-    final starting = local && ref.watch(localRuntimeProvider.select((s) => s.status.phase == RuntimePhase.starting));
-    final tidying = starting && ref.watch(localRuntimeProvider.select((s) => s.status.tidyingFiles));
-    // The engine stopped on its own: the failure card above the empty state
-    // carries the recovery, so the empty state offers no second one.
-    final failureCard = local && ref.watch(localRuntimeProvider.select((s) => EngineFailureCard.visibleFor(s.status)));
-    // 本机 down for good: no runtime (notInstalled), or stopped with auto
-    // start off (installed). Null otherwise.
-    final localIdle = local && !failureCard
-        ? ref.watch(
-            localRuntimeProvider.select(
-              (s) => s.status.runtimeMissing
-                  ? RuntimePhase.notInstalled
-                  : s.status.phase == RuntimePhase.installed
-                  ? RuntimePhase.installed
-                  : null,
-            ),
-          )
-        : null;
-    final idle = switch (localIdle) {
-      RuntimePhase.notInstalled => switch (localMissingCopy(
-        l10n,
-        available: ref.watch(localRuntimeProvider.select((s) => s.available)),
-      )) {
-        final copy => ChatIdleAction(
-          message: copy.title,
-          label: copy.action,
-          onTap: () => unawaited(openLocalInstall(context)),
-        ),
-      },
-      RuntimePhase.installed => ChatIdleAction(
-        message: l10n.shellEngineNotRunning,
-        label: l10n.shellStartEngine,
-        onTap: () => unawaited(EngineControl.ensureStarted(ProviderScope.containerOf(context, listen: false))),
-      ),
-      _ => null,
-    };
-    // A conversation open with nothing loaded while 本机 is down (a cold
-    // start back into the last one, auto start off): the empty page with its
-    // one fix rather than a blank list.
-    final idleBlank =
-        idle != null && sessionId != null && ref.watch(chatProvider(sessionId).select((s) => s.items.isEmpty));
 
     // 只盯顶栏 / 输入条需要的几个字段:流式增量不重建整页。
     final chat = sessionId == null
@@ -1709,13 +1648,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     final question = chat?.question;
     final status = _status(
       connecting: connAsync.isLoading && conn == null,
-      starting: starting,
       connected: connected,
-      idleLabel: switch (localIdle) {
-        RuntimePhase.notInstalled => l10n.phoneEngineNotInstalled,
-        RuntimePhase.installed => l10n.commonStopped,
-        _ => null,
-      },
       streamLost: chat?.streamLost ?? false,
       syncing: chat?.syncing ?? false,
       label: conn?.label ?? l10n.commonThisPhone,
@@ -1824,7 +1757,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                 children: [
                   LayoutId(
                     id: _Slot.body,
-                    child: sessionId == null || idleBlank
+                    child: sessionId == null
                         ? Padding(
                             padding: EdgeInsets.only(top: headerHeight, bottom: _ChatLayout.overlap),
                             child: Align(
@@ -1833,22 +1766,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    // The on-device engine stopped on its
-                                    // own (a remote host has its own errors).
-                                    if (failureCard)
-                                      const EngineFailureCard(padding: EdgeInsets.fromLTRB(16, 0, 16, 20)),
                                     ChatEmptyState(
                                       connected: connected,
                                       suggestions: ref.watch(settingsProvider.select((s) => s.chatSuggestions))
                                           ? defaultSuggestions
                                           : const [],
                                       connecting: connAsync.isLoading,
-                                      starting: starting,
-                                      tidying: tidying,
-                                      idle: idle,
-                                      onReconnect: connAsync.hasError && !connAsync.isLoading && !failureCard
-                                          ? _reconnect
-                                          : null,
+                                      onReconnect: connAsync.hasError && !connAsync.isLoading ? _reconnect : null,
                                       onSuggestion: _onSuggestion,
                                       options: NewChatOptions(
                                         folderLabel: !hasFolders
@@ -2104,11 +2028,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                                         ? const _BalanceBannerSlot()
                                         : const SizedBox(width: double.infinity),
                                   ),
-                                ),
-                                // Safe mode / trial banner; draws nothing otherwise.
-                                const PetPerch(
-                                  kind: PerchKind.banner,
-                                  child: SafeModeBanner(padding: EdgeInsets.only(bottom: 8)),
                                 ),
                                 if (connected && sessionId != null)
                                   PetPerch(
@@ -2368,9 +2287,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
 
   static HeaderStatus _status({
     required bool connecting,
-    required bool starting,
     required bool connected,
-    String? idleLabel,
     required bool streamLost,
     required bool syncing,
     required String label,
@@ -2381,10 +2298,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     String? spoken,
   }) {
     if (!connected) {
-      if (starting) return HeaderStatus(StatusTone.busy, appL10n.chatStarting);
       return connecting
           ? HeaderStatus(StatusTone.busy, appL10n.chatConnecting)
-          : HeaderStatus(StatusTone.idle, idleLabel ?? appL10n.commonNotConnected);
+          : HeaderStatus(StatusTone.idle, appL10n.commonNotConnected);
     }
     if (streamLost) {
       return HeaderStatus(StatusTone.error, appL10n.chatDisconnected);

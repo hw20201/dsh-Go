@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:dsh_app/l10n/l10n.dart';
-import 'package:dsh_app/runtime/runtime_state.dart';
 import 'package:dsh_app/state/compose_inbox.dart';
 import 'package:dsh_app/state/engine_settings_state.dart';
 import 'package:dsh_app/state/hosts_state.dart';
@@ -15,7 +14,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../chat/support/harness.dart';
-import '../shell/golden_harness.dart' show FakeRuntime;
 import 'seats/support.dart' show FixedHost;
 import 'support/fake_plugin_host.dart';
 
@@ -59,8 +57,6 @@ Future<void> _pump(
       overrides: [
         pluginInventoryProvider.overrideWith((ref) async => read != null ? await read() : _snapshot(inventory!)),
         activeHostProvider.overrideWith(() => FixedHost(host)),
-        localRuntimeLogsProvider.overrideWithBuild((ref, notifier) => const ['plugin load log line']),
-        localRuntimeProvider.overrideWith(() => FakeRuntime(const LocalRuntimeState(loaded: true))),
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
@@ -161,9 +157,9 @@ void main() {
     expect(find.text('加载失败'), findsOneWidget);
     expect(find.text('主机未返回运行时错误详情，请查看引擎日志。'), findsOneWidget);
     expect(find.text('元数据诊断'), findsNothing);
-    await tester.tap(find.text('引擎日志'));
-    await tester.pumpAndSettle();
-    expect(find.byType(LogView), findsOneWidget);
+    expect(find.text('请在这台主机上查看引擎日志。'), findsOneWidget);
+    expect(find.text('引擎日志'), findsNothing);
+    expect(find.byType(LogView), findsNothing);
   });
 
   testWidgets('healthy and disabled bundles take no additional layout space', (tester) async {
@@ -254,9 +250,14 @@ void main() {
         expect(rect.left, 20);
         expect(320 - rect.right, 20);
         final l10n = lookupL10n(locale);
-        final logs = find.widgetWithText(ListPageRow, l10n.shellEngineLogs);
-        expect(tester.getSize(logs).height, greaterThanOrEqualTo(48));
-        expect(find.text(l10n.pluginsLoadNoRuntimeDetail), findsOneWidget);
+        final refresh = find.widgetWithText(ListPageRow, l10n.pluginsRefresh);
+        expect(tester.getSize(refresh).height, greaterThanOrEqualTo(48));
+        for (final message in [l10n.pluginsLoadNoRuntimeDetail, l10n.pluginsLoadRemoteLogs]) {
+          final text = tester.getRect(find.text(message));
+          expect(text.left - rect.left, 16);
+          expect(rect.right - text.right, 16);
+        }
+        expect(find.text(l10n.shellEngineLogs), findsNothing);
         expect(tester.takeException(), isNull);
       });
 

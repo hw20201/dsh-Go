@@ -5,18 +5,15 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:dsh_app/runtime/runtime_state.dart';
 import 'package:dsh_app/state/balance_state.dart';
 import 'package:dsh_app/state/connection_state.dart';
 import 'package:dsh_app/state/drawer_view_state.dart';
-import 'package:dsh_app/state/onboarding_state.dart';
 import 'package:dsh_app/state/sessions_state.dart';
 import 'package:dsh_app/state/settings_state.dart';
 import 'package:dsh_app/ui/chat/chat_screen.dart';
 import 'package:dsh_app/ui/common/app_dialog.dart';
 import 'package:dsh_app/ui/common/app_sheet.dart';
 import 'package:dsh_app/ui/common/side_insets.dart';
-import 'package:dsh_app/ui/engine/engine_screen.dart';
 import 'package:dsh_app/ui/onboarding/welcome_page.dart';
 import 'package:dsh_app/ui/remote/remote_screen.dart';
 import 'package:dsh_app/ui/settings/settings_screen.dart';
@@ -69,11 +66,8 @@ class _Stop {
 
 List<Override> _shell() => [
   localConnectionProvider.overrideWith(FakeConnection.new),
-  onboardingPrefsProvider.overrideWith(FakeOnboardingPrefs.new),
   accountWalletBalanceProvider.overrideWithValue(null),
   drawerClockProvider.overrideWithValue(() => sampleNow),
-  localRuntimeProvider.overrideWith(() => FakeRuntime(const LocalRuntimeState(loaded: true, status: runningStatus))),
-  localRuntimeLogsProvider.overrideWithBuild((ref, notifier) => sampleLogs),
   settingsProvider.overrideWith(() => FakeSettings(const AppSettings(loaded: true, apiKey: 'sk-tour'))),
   sessionsProvider.overrideWith(() => FakeSessions(sampleSessions())),
   currentSessionProvider.overrideWith(() => FakeCurrentSession('s2')),
@@ -111,7 +105,7 @@ Future<void> _sheet(BuildContext context, String suffix) async {
 
 Future<void> _push(BuildContext context, String suffix) async {
   await _slowly(() {
-    unawaited(Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const EngineScreen())));
+    unawaited(Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const RemoteScreen())));
   }, 'push_moving$suffix');
   await Future<void>.delayed(_settle);
   await _shot('push$suffix');

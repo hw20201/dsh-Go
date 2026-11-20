@@ -109,7 +109,7 @@ void main() {
     testWidgets('on its own engine: a plain line instead of a mode that can only loop', (tester) async {
       await page(tester, 'ohos');
       expect(find.byKey(engine), findsNothing);
-      expect(find.byType(VoiceModelCard), findsNothing);
+      expect(find.byKey(const ValueKey('voice-model-card')), findsNothing);
       expect(find.text(zh.harmonyVoiceLocalLine), findsOneWidget);
       expect(find.byKey(const ValueKey('voice-mode-system')), findsOneWidget);
     });
@@ -123,7 +123,8 @@ void main() {
     testWidgets('on Android: as ever', (tester) async {
       await page(tester, 'android');
       expect(find.byKey(engine), findsOneWidget);
-      expect(find.byType(VoiceModelCard), findsOneWidget);
+      expect(find.byKey(const ValueKey('voice-model-card')), findsNothing);
+      expect(find.byKey(const ValueKey('live-model-card')), findsOneWidget);
       expect(find.text(zh.harmonyVoiceLocalLine), findsNothing);
     });
 

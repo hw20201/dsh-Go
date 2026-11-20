@@ -103,7 +103,7 @@ dsh-go App 会读 `$DSH_HOME/dsh-go/ui.json`（`DSH_HOME` 默认 `~/.dsh`），�
 | `type` | 字段 | 用户点了之后 |
 |---|---|---|
 | `send` | `text`（≤ 2000 字） | 把文字放进输入框，用户自己点发送；绝不自动发送 |
-| `open` | `page` | 打开 App 页面：`new-chat`、`settings`、`search`、`files`、`terminal`、`jobs`、`skills`、`schedules`、`models`、`plugins`、`cordis`、`engine`、`web`、`session-detail`、`workspaces`、`account`、`remote`、`phone`、`notifications`、`diagnostics` 等，全部见 `schema.json` 的 `$defs.page` |
+| `open` | `page` | 打开 App 页面：`new-chat`、`settings`、`search`、`files`、`terminal`、`jobs`、`skills`、`schedules`、`models`、`plugins`、`cordis`、`web`、`session-detail`、`workspaces`、`account`、`remote`、`phone`、`notifications`、`diagnostics` 等，全部见 `schema.json` 的 `$defs.page` |
 | `command` | `name`（不带 `/`）、`args`（可选，单行） | 在当前对话里执行 `/name args` |
 | `link` | `url`（只收 `https://`） | 弹确认后用浏览器打开 |
 

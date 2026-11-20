@@ -23,6 +23,36 @@ void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
   final photo = dsBotPhotoProvider((botId: 'b3', ref: 'abc123'));
 
+  test('photo listeners share bytes until the last leaves, then a revisit fetches again', () async {
+    final fake = FakeDsBotTransport()..helloOnFeed = false;
+    final container = dsBotContainer(fake);
+    addTearDown(container.dispose);
+    container.listen(dsBotProvider, (_, _) {});
+    await settle(12);
+    final first = container.listen(photo, (_, _) {});
+    final second = container.listen(photo, (_, _) {});
+    await settle(8);
+    final original = second.read().value;
+    expect(original, isNotNull);
+    expect(first.read().value, same(original));
+    expect(fake.endpoints.where((e) => e == 'avatar'), hasLength(1));
+
+    first.close();
+    await settle(8);
+    expect(container.exists(photo), isTrue);
+    expect(second.read().value, same(original));
+    second.close();
+    await settle(8);
+    expect(container.exists(photo), isFalse);
+
+    final revisited = container.listen(photo, (_, _) {});
+    await settle(8);
+    expect(fake.endpoints.where((e) => e == 'avatar'), hasLength(2));
+    expect(revisited.read().value, orderedEquals(original!));
+    expect(revisited.read().value, isNot(same(original)));
+    revisited.close();
+  });
+
   for (final change in ['host', 'HTTP boot']) {
     for (final lateError in [false, true]) {
       test('photo renews after $change while old request is pending; lateError=$lateError', () async {

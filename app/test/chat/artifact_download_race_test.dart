@@ -8,6 +8,7 @@ import 'package:dsh_app/state/connection_state.dart';
 import 'package:dsh_client/dsh_client.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:share_plus/share_plus.dart';
 
 const _artifact = Artifact(path: '/home/me/a.png', origin: ArtifactOrigin.linked, turn: 1);
 
@@ -80,10 +81,16 @@ class _Rig {
   late final client = DshClient.withCarrier(carrier);
   late final files = forHost('host-a');
 
-  ArtifactFiles forHost(String host) => ArtifactFiles(
+  ArtifactFiles forHost(
+    String host, {
+    int maxCacheBytes = maxArtifactCacheBytes,
+    Future<void> Function(ShareParams params)? share,
+  }) => ArtifactFiles(
     connection: HostConnection(client: client, label: host, isLocal: false, hostId: host),
     channel: const FilesChannel(),
+    share: share,
     cacheRoot: () async => cache,
+    maxCacheBytes: maxCacheBytes,
   );
 
   Future<void> noStagingLeft() async {
@@ -181,6 +188,88 @@ void main() {
       await rig.noStagingLeft();
     });
   }
+
+  test('completed cache entries are evicted to stay within the total budget', () async {
+    final files = rig.forHost('host-a', maxCacheBytes: 4);
+    final first = files.materialize('s1', _artifact);
+    await rig.carrier.entered[0].future;
+    rig.carrier.succeed(0);
+    final firstFile = await first;
+    expect(await firstFile.exists(), isTrue);
+
+    const secondArtifact = Artifact(path: '/home/me/b.png', origin: ArtifactOrigin.linked, turn: 2);
+    final second = files.materialize('s1', secondArtifact);
+    await rig.carrier.entered[1].future;
+    rig.carrier.succeed(1);
+    final secondFile = await second;
+
+    expect(await firstFile.exists(), isFalse);
+    expect(await secondFile.exists(), isTrue);
+    expect(await secondFile.readAsBytes(), [1, 2, 3, 4]);
+    await rig.noStagingLeft();
+  });
+
+  test('native share lease protects its cache entry until consumption completes', () async {
+    const secondArtifact = Artifact(path: '/home/me/b.png', origin: ArtifactOrigin.linked, turn: 2);
+    const thirdArtifact = Artifact(path: '/home/me/c.png', origin: ArtifactOrigin.linked, turn: 3);
+    final sharing = Completer<void>();
+    final shareStarted = Completer<void>();
+    final files = rig.forHost(
+      'host-a',
+      maxCacheBytes: 4,
+      share: (_) async {
+        shareStarted.complete();
+        await sharing.future;
+      },
+    );
+    final initial = files.materialize('s1', _artifact);
+    await rig.carrier.entered[0].future;
+    rig.carrier.succeed(0);
+    final first = await initial;
+    final share = files.share('s1', _artifact);
+    await shareStarted.future;
+
+    final second = files.materialize('s1', secondArtifact);
+    await rig.carrier.entered[1].future;
+    rig.carrier.succeed(1);
+    final secondFile = await second;
+    expect(await first.exists(), isTrue);
+    expect(await secondFile.exists(), isTrue);
+
+    sharing.complete();
+    await share;
+    final third = files.materialize('s1', thirdArtifact);
+    await rig.carrier.entered[2].future;
+    rig.carrier.succeed(2);
+    await third;
+    expect(await first.exists(), isFalse);
+  });
+
+  test('trim preserves another in-flight staging directory over budget', () async {
+    const secondArtifact = Artifact(path: '/home/me/b.png', origin: ArtifactOrigin.linked, turn: 2);
+    final files = rig.forHost('host-a', maxCacheBytes: 4);
+    final first = files.materialize('s1', _artifact);
+    await rig.carrier.entered[0].future;
+    final second = files.materialize('s1', secondArtifact);
+    await rig.carrier.entered[1].future;
+    rig.carrier.succeed(1, bytes: [1, 2], eof: false);
+    await rig.carrier.entered[2].future;
+
+    rig.carrier.succeed(0);
+    final firstFile = await first;
+    final staging = await rig.cache
+        .list(recursive: true)
+        .where((entity) => entity is File && entity.path.contains('.part-'))
+        .cast<File>()
+        .single;
+    expect(await staging.readAsBytes(), [1, 2]);
+    expect(await firstFile.exists(), isTrue);
+
+    rig.carrier.succeed(2, bytes: [3, 4]);
+    final secondFile = await second;
+    expect(await secondFile.readAsBytes(), [1, 2, 3, 4]);
+    await rig.noStagingLeft();
+  });
 
   test('a failed download only removes its own staging, leaving the peer usable', () async {
     final failed = _observed(rig.files.materialize('s1', _artifact));

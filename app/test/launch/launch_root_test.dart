@@ -8,6 +8,7 @@ import 'package:dsh_app/launch/startup_trace.dart';
 import 'package:dsh_app/runtime/runtime_bridge.dart';
 import 'package:dsh_app/runtime/runtime_state.dart';
 import 'package:dsh_app/state/settings_state.dart';
+import 'package:dsh_app/state/onboarding_state.dart';
 import 'package:dsh_app/ui/launch/launch_overlay.dart';
 import 'package:dsh_app/ui/shell/root_gate.dart';
 import 'package:dsh_app/ui/theme/theme_reveal.dart';
@@ -50,21 +51,17 @@ void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
   tearDown(() => LaunchController.active.value = null);
 
-  testWidgets('RootGate: ready as soon as home is up, with the engine still starting', (tester) async {
+  testWidgets('RootGate: ready while local runtime has not loaded', (tester) async {
     final channel = FakeLaunchChannel();
     final c = LaunchController(snapshot: snapshotFor(), channel: channel);
     LaunchController.active.value = c;
-    final runtime = RecordingRuntime(
-      const LocalRuntimeState(
-        loaded: true,
-        status: RuntimeStatus(phase: RuntimePhase.installed, bundledVersion: 'r1', installedVersion: 'r1'),
-      ),
-    );
+    final runtime = RecordingRuntime(const LocalRuntimeState(loaded: false));
     usePhoneSurface(tester);
     await tester.pumpWidget(
       goldenApp(
         home: const RootGate(home: Scaffold(body: Text('home'))),
         brightness: Brightness.light,
+        prefs: const OnboardingPrefs(loaded: true, welcomeSeen: true, localDeclined: true),
         overrides: [
           localRuntimeProvider.overrideWith(() => runtime),
           settingsProvider.overrideWith(
@@ -76,8 +73,7 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(channel.marks, contains('ready'));
-    // The engine was asked to start, and nobody waited for it.
-    expect(runtime.starts, ['start']);
+    expect(runtime.starts, isEmpty);
     await tester.pump(const Duration(seconds: 1));
   });
 
@@ -162,7 +158,7 @@ void main() {
     }, variant: ios);
   });
 
-  testWidgets('the app root tells a held cold start when this phone\'s engine is running', (tester) async {
+  testWidgets('the app root leaves a legacy cold-engine launch without starting the runtime', (tester) async {
     usePhone(tester);
     final c = LaunchController(
       snapshot: snapshotFor(sdk: 30, systemSplash: false, coldEngine: true),
@@ -185,20 +181,11 @@ void main() {
       ),
     );
     await tester.pump();
-    c.ready();
-    await tester.pump(const Duration(milliseconds: 300));
-    expect(c.phase, LaunchPhase.playing);
-    runtime.emit(
-      const LocalRuntimeState(
-        loaded: true,
-        status: RuntimeStatus(phase: RuntimePhase.running, bundledVersion: 'r1', installedVersion: 'r1'),
-      ),
-    );
-    await tester.pump();
-    await tester.pump();
-    expect(c.phase, LaunchPhase.leaving);
-    await tester.pump(const Duration(milliseconds: 400));
-    await tester.pump();
+    c.ready(waitsForEngine: false);
+    for (var elapsed = 0; elapsed < 2000; elapsed += 20) {
+      await tester.pump(const Duration(milliseconds: 20));
+    }
+    expect(runtime.starts, isEmpty);
     expect(LaunchController.active.value, isNull);
   });
 

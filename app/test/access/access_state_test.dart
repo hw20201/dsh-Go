@@ -140,7 +140,7 @@ void main() {
       return c;
     }
 
-    test('the picks and skips, and voice as true or false', () async {
+    test('the picks and skips, without local model download consent', () async {
       SharedPreferences.setMockInitialValues({});
       var c = await container();
       expect(c.read(accessSetupProvider).loaded, isTrue);
@@ -149,7 +149,7 @@ void main() {
       await c.read(accessSetupProvider.notifier).choose({AccessFeature.voice, AccessFeature.phone});
       await c.read(accessSetupProvider.notifier).skip(AccessItem.popup);
       final prefs = await SharedPreferences.getInstance();
-      expect(prefs.getBool(onboardingWantsVoiceKey), isTrue);
+      expect(prefs.containsKey('onboarding_wants_voice'), isFalse);
 
       // A new launch finds the same walk.
       c = await container();
@@ -157,12 +157,12 @@ void main() {
       expect(c.read(accessSetupProvider).skipped, {AccessItem.popup});
 
       await c.read(accessSetupProvider.notifier).choose({AccessFeature.files});
-      expect(prefs.getBool(onboardingWantsVoiceKey), isFalse);
+      expect(prefs.containsKey('onboarding_wants_voice'), isFalse);
 
       await c.read(accessSetupProvider.notifier).clear();
       expect(prefs.getString(AccessSetupController.prefsKey), isNull);
-      // The answer about voice stays for the voice feature.
-      expect(prefs.getBool(onboardingWantsVoiceKey), isFalse);
+      // Permission choices never authorize a local engine model download.
+      expect(prefs.containsKey('onboarding_wants_voice'), isFalse);
     });
 
     test('nothing about voice while the page was never confirmed', () async {
@@ -170,7 +170,7 @@ void main() {
       final c = await container();
       await c.read(accessSetupProvider.notifier).clear();
       final prefs = await SharedPreferences.getInstance();
-      expect(prefs.containsKey(onboardingWantsVoiceKey), isFalse);
+      expect(prefs.containsKey('onboarding_wants_voice'), isFalse);
     });
 
     test('the makers\' switches the person said are set', () async {

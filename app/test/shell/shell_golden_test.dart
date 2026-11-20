@@ -9,16 +9,13 @@ import 'package:dsh_app/runtime/runtime_bridge.dart';
 import 'package:dsh_app/runtime/runtime_state.dart';
 import 'package:dsh_app/state/sessions_state.dart';
 import 'package:dsh_app/state/settings_state.dart';
-import 'package:dsh_app/ui/engine/engine_screen.dart';
 import 'package:dsh_app/ui/onboarding/api_key_page.dart';
 import 'package:dsh_app/ui/onboarding/onboarding_scaffold.dart';
-import 'package:dsh_app/ui/onboarding/runtime_setup_page.dart';
 import 'package:dsh_app/ui/onboarding/welcome_page.dart';
 import 'package:dsh_app/ui/remote/remote_screen.dart';
 import 'package:dsh_app/ui/settings/settings_screen.dart';
 import 'package:dsh_app/ui/shell/home_shell.dart';
 import 'package:dsh_app/ui/theme/theme.dart';
-import 'package:dsh_app/ui/web/local_web_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -28,44 +25,6 @@ const _key = 'sk-4c1f0e7b9a2d4e6f8a1b3c5d7e9fa3f9';
 
 void main() {
   goldenBoth('welcome', () => WelcomePage(onStart: () {}));
-
-  goldenBoth(
-    'setup_40',
-    // Inside the flow: step 1 of 2 in the top bar.
-    () => OnboardingProgress(step: 1, steps: 2, child: RuntimeSetupPage(onDone: () {})),
-    overrides: () => [
-      localRuntimeProvider.overrideWith(
-        () => FakeRuntime(
-          const LocalRuntimeState(
-            loaded: true,
-            status: RuntimeStatus(phase: RuntimePhase.installing, bundledVersion: 'r1'),
-            progress: RuntimeProgressEvent(step: 'extract', done: 48234496, total: 120586240),
-          ),
-        ),
-      ),
-    ],
-  );
-
-  goldenBoth(
-    'setup_error',
-    // Inside the flow: step 1 of 2 in the top bar.
-    () => OnboardingProgress(step: 1, steps: 2, child: RuntimeSetupPage(onDone: () {})),
-    overrides: () => [
-      localRuntimeProvider.overrideWith(
-        () => FakeRuntime(
-          const LocalRuntimeState(
-            loaded: true,
-            status: RuntimeStatus(
-              phase: RuntimePhase.error,
-              bundledVersion: 'r1',
-              error: 'install failed: 存储空间不足：需要约 640 MB，当前可用 212 MB',
-            ),
-            progress: RuntimeProgressEvent(step: 'extract', done: 30000000, total: 120586240),
-          ),
-        ),
-      ),
-    ],
-  );
 
   goldenBoth(
     'api_key',
@@ -83,18 +42,6 @@ void main() {
       localRuntimeLogsProvider.overrideWithBuild((ref, notifier) => sampleLogs),
       sessionsProvider.overrideWith(() => FakeSessions(sampleSessions())),
       currentSessionProvider.overrideWith(() => FakeCurrentSession('s2')),
-    ],
-  );
-
-  goldenBoth(
-    'engine',
-    () => const EngineScreen(),
-    overrides: () => [
-      localRuntimeProvider.overrideWith(
-        () => FakeRuntime(const LocalRuntimeState(loaded: true, status: runningStatus)),
-      ),
-      localRuntimeLogsProvider.overrideWithBuild((ref, notifier) => sampleLogs),
-      settingsProvider.overrideWith(() => FakeSettings(const AppSettings(loaded: true))),
     ],
   );
 
@@ -183,17 +130,6 @@ void main() {
     ],
   );
 
-  // Web fallback while the engine is down.
-  goldenBoth(
-    'web_offline',
-    () => const LocalWebScreen(),
-    overrides: () => [
-      localRuntimeProvider.overrideWith(
-        () => FakeRuntime(const LocalRuntimeState(loaded: true, status: RuntimeStatus(phase: RuntimePhase.installed))),
-      ),
-      settingsProvider.overrideWith(() => FakeSettings(const AppSettings(loaded: true))),
-    ],
-  );
 }
 
 /// Stand-in for the chat screen behind the drawer: a few message shapes so the

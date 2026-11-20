@@ -193,8 +193,8 @@ class _RemoteRouteSection extends ConsumerWidget {
     final l10n = context.l10n;
     final policy = ref.watch(remoteTransportPolicyProvider);
     final active = ref.watch(activeHostProvider);
-    final connected = active.kind == HostKind.relay &&
-        (ref.watch(hostLinkStatusProvider(active)).value?.isConnected ?? false);
+    final connected =
+        active.kind == HostKind.relay && (ref.watch(hostLinkStatusProvider(active)).value?.isConnected ?? false);
     final directAvailable = ref.watch(webRtcAvailableProvider);
     String label(RemoteTransportPolicy value) => switch (value) {
       RemoteTransportPolicy.automatic => l10n.remoteRouteAutomatic,
@@ -230,7 +230,7 @@ class _RemoteRouteSection extends ConsumerWidget {
                           : () => Navigator.pop(dialog, value),
                       child: Row(
                         children: [
-                          Icon(value == policy ? Icons.radio_button_checked : Icons.radio_button_unchecked),
+                          Icon(value == policy ? AppIcons.radioOn : AppIcons.radioOff),
                           const SizedBox(width: 12),
                           Expanded(child: Text(label(value))),
                         ],

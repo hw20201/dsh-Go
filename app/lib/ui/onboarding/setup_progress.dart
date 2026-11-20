@@ -19,7 +19,7 @@ import '../common/progress_halo.dart';
 import '../engine/engine_status.dart' show humanizeRuntimeError;
 import '../theme/app_icons.dart';
 import '../theme/theme.dart';
-import 'runtime_setup_page.dart' show showRuntimeLogSheet;
+import '../engine/runtime_log_sheet.dart' show showRuntimeLogSheet;
 
 // ── State ────────────────────────────────────────────────────────────────────
 

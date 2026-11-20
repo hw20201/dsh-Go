@@ -211,7 +211,7 @@ void main() {
       ),
       'restricted': (() => _walk([AccessItem.accessibility]), _restricted, null),
       'summary': (
-        () => AccessSummaryPage(items: accessWalk(AccessFeature.values, 'vivo'), voice: true, onDone: () {}),
+        () => AccessSummaryPage(items: accessWalk(AccessFeature.values, 'vivo'), onDone: () {}),
         readingsWith(offPhone, mic: true, notifications: true),
         null,
       ),

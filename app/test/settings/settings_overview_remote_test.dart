@@ -63,8 +63,8 @@ void main() {
     expect(find.text('登录 DeepSeek 账号'), findsNothing);
     expect(find.text('或填写 API Key'), findsNothing);
     expect(find.bySemanticsLabel('远程主机：实验室服务器，已连接'), findsOneWidget);
-    // The engine line stays: it is where the runtime gets installed.
-    expect(find.text('本机引擎 · 未安装'), findsOneWidget);
+    // This fork has no on-device engine installation entry.
+    expect(find.text('本机引擎 · 未安装'), findsNothing);
 
     await tester.tap(find.text('实验室服务器'));
     await tester.pump();

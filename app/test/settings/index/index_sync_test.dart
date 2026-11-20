@@ -11,7 +11,6 @@ import 'package:dsh_app/state/account_state.dart';
 import 'package:dsh_app/state/balance_state.dart';
 import 'package:dsh_app/state/connection_state.dart';
 import 'package:dsh_app/state/settings_state.dart';
-import 'package:dsh_app/ui/engine/engine_screen.dart';
 import 'package:dsh_app/ui/engine_settings/engine_settings_hub.dart';
 import 'package:dsh_app/ui/engine_settings/runtime_settings_pages.dart';
 import 'package:dsh_app/ui/engine_settings/subagent_settings_page.dart';
@@ -35,7 +34,7 @@ import 'package:dsh_app/ui/settings/settings_screen.dart';
 import 'package:dsh_app/state/app_info.dart';
 import 'package:dsh_app/ui/settings/index/spots.dart';
 import 'package:dsh_app/ui/settings/settings_widgets.dart';
-import 'package:dsh_client/dsh_client.dart';
+import 'package:dsh_client/dsh_client.dart' hide SettingsSection;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -61,7 +60,14 @@ final Map<SettingsPageId, List<String Function(L10n)>> _unlisted = {
     (l) => l.performanceFollowMode,
   ],
   SettingsPageId.pets: [(l) => l.botsPetShowNow, (l) => l.botsPetSwitchDisabled, (l) => l.botsPetHiddenToday],
-  SettingsPageId.remote: [(l) => l.remoteWebConsole],
+  SettingsPageId.remote: [
+    (l) => l.remoteWebConsole,
+    (l) => l.remoteAddSshHost,
+    (l) => l.remoteDirectHostsIntro,
+    (l) => l.remoteRouteMode,
+    (l) => l.remoteNetworkAutomatic,
+    (l) => l.remoteRouteAutomatic,
+  ],
 };
 
 /// Entries whose row shows the thing itself rather than the page's name
@@ -89,7 +95,6 @@ const _sections = {
 /// than one way in; the name is the same).
 const _aliases = {
   SettingsPageId.phone: {'page:background'},
-  SettingsPageId.engine: {'page:background', 'page:diagnostics'},
 };
 
 /// Pumps the page in Chinese, checks it, then again in English.
@@ -111,6 +116,18 @@ Future<void> _check(
 
 /// Folded rows are still real entries; open them before asserting reachability.
 Future<void> _expandFolds(WidgetTester tester) async {
+  final sections = find.byWidgetPredicate(
+    (widget) => widget is SettingsSection && widget.collapsible && !widget.initiallyExpanded,
+    skipOffstage: false,
+  );
+  for (var i = 0; i < sections.evaluate().length; i++) {
+    final section = tester.widget<SettingsSection>(sections.at(i));
+    final header = find.descendant(of: sections.at(i), matching: find.text(section.title!)).first;
+    await tester.ensureVisible(header);
+    await tester.pumpAndSettle();
+    await tester.tap(header);
+    await tester.pumpAndSettle();
+  }
   for (var i = 0; i < find.byType(PhoneOptionsFold, skipOffstage: false).evaluate().length; i++) {
     final header = find
         .descendant(
@@ -218,8 +235,8 @@ void main() {
           ),
         ],
       ),
-      // HarmonyOS's own pages: 系统操作 stands in for 手机操控, Linux 环境 is extra.
-      absent: {'page:systemActions', 'page:linuxEnvironment'},
+      // These local-only destinations no longer have hub entries.
+      absent: {'page:systemActions', 'page:phone'},
     );
   });
 
@@ -271,10 +288,6 @@ void main() {
 
   testWidgets('后台运行', (tester) async {
     await _check(tester, SettingsPageId.background, () => _app(tester, const BackgroundGuidePage(), _running()));
-  });
-
-  testWidgets('本机引擎', (tester) async {
-    await _check(tester, SettingsPageId.engine, () => _app(tester, const EngineScreen(), _running()));
   });
 
   testWidgets('手机操控', (tester) async {

@@ -1,5 +1,5 @@
 // Interaction: switching hosts from the sheet (with the first-use host-key
-// check), relay trust, saving an SSH host, and going back to 本机.
+// check), relay trust, saving an SSH host, and remote-mode controls.
 
 import 'dart:convert';
 import 'dart:ui' show Tristate;
@@ -85,6 +85,12 @@ void main() {
     }
   }
 
+  testWidgets('remote page exposes no local workspace recovery action', (tester) async {
+    await pump(tester, const RemoteScreen());
+    expect(find.byKey(const ValueKey('workspace-recovery')), findsNothing);
+    expect(find.byKey(const ValueKey('workspace-recovery-confirm')), findsNothing);
+  });
+
   testWidgets('expired relay login offers 重新登录 even after account sign-out', (tester) async {
     relay.user = null;
     linkStatus = const HostLinkStatus(
@@ -144,12 +150,16 @@ void main() {
     semantics.dispose();
   });
 
-  testWidgets('host switcher exposes the active row as selected', (tester) async {
+  testWidgets('host switcher exposes the active SSH row as selected', (tester) async {
     final semantics = tester.ensureSemantics();
+    SharedPreferences.setMockInitialValues({
+      HostsController.prefsKey: jsonEncode([sampleSsh.toJson(), _unpinned.toJson()]),
+      ActiveHostController.prefsKey: HostRef.ssh(sampleSsh.id).encode(),
+    });
     await pump(tester, const _Launcher());
     await openSheet(tester);
     expect(
-      tester.getSemantics(find.byKey(const ValueKey('host-row-local-local'))).flagsCollection.isSelected,
+      tester.getSemantics(find.byKey(ValueKey('host-row-ssh-${sampleSsh.id}'))).flagsCollection.isSelected,
       Tristate.isTrue,
     );
     semantics.dispose();
@@ -332,7 +342,7 @@ void main() {
     expect(find.text('填写主机地址（IP 或域名）'), findsOneWidget, reason: 'shown under the field it is about');
   });
 
-  testWidgets('切回本机 from the remote page', (tester) async {
+  testWidgets('remote page has no local-mode action', (tester) async {
     SharedPreferences.setMockInitialValues({
       HostsController.prefsKey: jsonEncode([sampleSsh.toJson()]),
       ActiveHostController.prefsKey: HostRef.ssh(sampleSsh.id).encode(),
@@ -340,9 +350,7 @@ void main() {
     final c = await pump(tester, const RemoteScreen());
     await frames(tester, 3);
     expect(c.read(activeHostProvider), HostRef.ssh(sampleSsh.id));
-    await tester.tap(find.text('切回本机'));
-    await tester.pump();
-    expect(c.read(activeHostProvider), HostRef.local);
+    expect(find.text('切回本机'), findsNothing);
   });
 }
 

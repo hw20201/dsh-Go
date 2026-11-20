@@ -3,25 +3,20 @@
 // focused, with a short confirmation that stays clear of the composer. A
 // picked skill always goes out as a message, never as a look-alike command.
 
-import 'package:dsh_app/runtime/runtime_state.dart';
 import 'package:dsh_app/state/chat_state.dart';
 import 'package:dsh_app/state/composer_insert.dart';
-import 'package:dsh_app/state/connection_state.dart';
 import 'package:dsh_app/state/draft_store.dart';
 import 'package:dsh_app/state/hosts_state.dart';
 import 'package:dsh_app/state/sessions_state.dart';
 import 'package:dsh_app/ui/chat/chat_screen.dart';
 import 'package:dsh_app/ui/chat/composer.dart';
 import 'package:dsh_app/ui/chat/composer_toast.dart';
-import 'package:dsh_app/ui/chat/empty_actions.dart';
 import 'package:dsh_app/ui/chat/empty_state.dart';
-import 'package:dsh_app/ui/safe_mode/engine_failure_card.dart';
 import 'package:dsh_app/ui/theme/app_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../safe_mode/support.dart';
 import 'support/harness.dart';
 
 Future<ProviderContainer> _pump(WidgetTester tester, ChatHarness harness) async {
@@ -143,46 +138,18 @@ void main() {
     expect(harness.controllers['fresh']!.commandLines, isEmpty);
   });
 
-  testWidgets('the engine failure card keeps the only primary action', (tester) async {
+  testWidgets('a remote host keeps its empty state and composer', (tester) async {
     usePhoneView(tester);
-    final harness = ChatHarness(
-      connected: false,
-      runtime: () => RecordingRuntime(LocalRuntimeState(loaded: true, status: failedStatus())),
-    );
+    final harness = ChatHarness();
     await tester.pumpWidget(
       testApp(
         const ChatScreen(),
-        overrides: [
-          activeConnectionProvider.overrideWithValue(AsyncError<HostConnection?>(StateError('raw'), StackTrace.empty)),
-          ...harness.overrides.skip(1),
-          runtimeBridgeProvider.overrideWithValue(FakeBridge()),
-        ],
+        overrides: [...harness.overrides, activeHostProvider.overrideWith(() => _FixedHost(const HostRef.ssh('box')))],
       ),
     );
     await pumpFrames(tester, 8);
-    expect(find.byType(EngineFailureCard), findsOneWidget);
-    expect(find.byType(EmptyPrimaryPill), findsNothing);
-    expect(find.text('重新连接'), findsNothing);
-  });
-
-  testWidgets('a remote host never shows the local engine failure card', (tester) async {
-    usePhoneView(tester);
-    final harness = ChatHarness(
-      runtime: () => RecordingRuntime(LocalRuntimeState(loaded: true, status: failedStatus())),
-    );
-    await tester.pumpWidget(
-      testApp(
-        const ChatScreen(),
-        overrides: [
-          ...harness.overrides,
-          activeHostProvider.overrideWith(() => _FixedHost(const HostRef.ssh('box'))),
-          runtimeBridgeProvider.overrideWithValue(FakeBridge()),
-        ],
-      ),
-    );
-    await pumpFrames(tester, 8);
-    expect(find.byType(EngineFailureCard), findsNothing);
     expect(find.byType(ChatEmptyState), findsOneWidget);
+    expect(find.byType(Composer), findsOneWidget);
   });
 }
 

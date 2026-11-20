@@ -35,18 +35,7 @@ import 'notify_state.dart';
 import 'phone_state.dart';
 import 'settings_state.dart';
 import 'system_actions_state.dart';
-import 'voice_model_state.dart' show VoiceModelController, voiceModelDefaultBytes;
 import 'voice_state.dart';
-
-/// The offline voice model's download in MB as the voice settings show it,
-/// said before it is chosen (the voice feature downloads it once the engine
-/// is up).
-final voiceModelApproxMb = (voiceModelDefaultBytes / 1000000).round();
-
-/// First run's answer about voice input, which [VoiceModelController] picks
-/// up: true when 语音输入 was picked (it starts the download once), false when
-/// the page was confirmed without it, absent when the page was skipped.
-const onboardingWantsVoiceKey = VoiceModelController.onboardingKey;
 
 /// What a person picks on first run: things DSH Go does, not permission names.
 /// What [os] offers is [accessFeaturesFor]'s, never all of these.
@@ -68,10 +57,6 @@ List<AccessFeature> accessFeaturesFor(String os) => switch (os) {
   ],
   _ => const [AccessFeature.alerts, AccessFeature.voice],
 };
-
-/// Whether 语音输入 on [os] means the offline model's download: HarmonyOS and
-/// iOS use the system's recogniser and have no model.
-bool accessVoiceDownloads(String os) => androidSystemFeaturesOn(os);
 
 /// One system permission or maker's switch, in the order first run walks
 /// them: the system's own dialogs first, then settings pages, the makers'
@@ -525,19 +510,11 @@ class AccessSetupController extends Notifier<AccessSetup> {
     } catch (_) {}
   }
 
-  /// 「开启所选」: the walk starts, and the voice answer is written for the
-  /// voice feature to pick up (never yes where there is no model to fetch,
-  /// [accessVoiceDownloads]). [phoneMode], picked with 手机操控, goes to the
-  /// phone's policies now, or as soon as they can be written
-  /// ([PhoneController.chooseConfirmMode]).
+  /// 「开启所选」 starts the permission walk. The chosen phone confirmation
+  /// policy is applied now or when its host can accept it.
   Future<void> choose(Set<AccessFeature> features, {PhoneConfirmMode? phoneMode}) async {
     state = AccessSetup(loaded: true, features: {...features});
     await _save();
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final os = ref.read(operatingSystemProvider);
-      await prefs.setBool(onboardingWantsVoiceKey, features.contains(AccessFeature.voice) && accessVoiceDownloads(os));
-    } catch (_) {}
     if (phoneMode != null && features.contains(AccessFeature.phone)) {
       try {
         await ref.read(phoneProvider.notifier).chooseConfirmMode(phoneMode);

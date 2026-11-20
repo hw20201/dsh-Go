@@ -9,7 +9,6 @@ import '../../state/hosts_state.dart';
 import '../../state/plugins_state.dart' show installedPluginsProvider;
 import '../../state/settings_state.dart';
 import '../../state/ui_mode_state.dart';
-import 'local_web_screen.dart';
 import 'web_target.dart';
 import 'web_view_page.dart';
 
@@ -18,11 +17,9 @@ sealed class DshWebAccess {
   const DshWebAccess();
 }
 
-/// 本机: the on-device engine's `dsh web` ([LocalWebScreen] handles a
-/// stopped engine itself).
-final class LocalDshWeb extends DshWebAccess {
-  const LocalDshWeb();
-}
+/// The official DSH Web UI's token-authenticated launch URL.
+Uri localWebUri(String baseUrl, String token) =>
+    Uri.parse(baseUrl).replace(path: '/', queryParameters: {'token': token});
 
 /// An SSH host: the remote `dsh web` through the app's local forward.
 ///
@@ -53,7 +50,7 @@ final dshWebAccessProvider = Provider.autoDispose<DshWebAccess>((ref) {
   final host = ref.watch(activeHostProvider);
   switch (host.kind) {
     case HostKind.local:
-      return const LocalDshWeb();
+      return NoDshWeb(appL10n.webConnectHostFirst(appL10n.commonRemoteHost));
     case HostKind.relay:
       return NoDshWeb(appL10n.webRelayUnavailable);
     case HostKind.ssh:
@@ -111,8 +108,6 @@ void openDshWeb(BuildContext context, WidgetRef ref, {DshWebTarget target = cons
   }
   final Widget page;
   switch (ref.read(dshWebAccessProvider)) {
-    case LocalDshWeb():
-      page = LocalWebScreen(target: target);
     case SshDshWeb(:final url, :final hostName) || DirectDshWeb(:final url, :final hostName):
       page = WebViewPage(
         url: url,

@@ -24,6 +24,13 @@ void main() {
     expect(settingsPage(entry.opens!), isA<AndroidShellPage>());
   });
 
+  test('local runtime pages are gone and remote engine settings remain', () {
+    expect(SettingsIndex.pageForLink('engine'), isNull);
+    expect(SettingsIndex.pageForLink('linux-environment'), isNull);
+    expect(SettingsIndex.pageForLink('engine-settings')?.id, SettingsPageId.engineParams);
+    expect(SettingsIndex.pageForLink('remote')?.id, SettingsPageId.remote);
+  });
+
   test('ids are unique', () {
     final ids = [for (final s in SettingsIndex.spots) s.id];
     expect(ids.toSet().length, ids.length);

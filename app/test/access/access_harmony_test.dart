@@ -9,7 +9,6 @@ import 'package:dsh_app/runtime/runtime_state.dart';
 import 'package:dsh_app/state/access_state.dart';
 import 'package:dsh_app/state/android_features.dart';
 import 'package:dsh_app/state/system_actions_state.dart';
-import 'package:dsh_app/state/voice_model_state.dart';
 import 'package:dsh_app/ui/access/access_walk.dart';
 import 'package:dsh_app/ui/access/phone_mode_sheet.dart';
 import 'package:dsh_app/ui/phone/phone_disclosure_sheet.dart';
@@ -207,12 +206,6 @@ void main() {
       // A maker's name changes nothing: none of its switches belong to these.
       expect(accessWalk(accessFeaturesFor('ohos'), 'huawei'), [AccessItem.mic, AccessItem.notifications]);
     });
-
-    test('only Android\'s voice input downloads a model', () {
-      expect(accessVoiceDownloads('android'), isTrue);
-      expect(accessVoiceDownloads('ohos'), isFalse);
-      expect(accessVoiceDownloads('ios'), isFalse);
-    });
   });
 
   group('picks kept across a kill', () {
@@ -303,7 +296,7 @@ void main() {
       ]) {
         expect(find.text(other), findsNothing, reason: other);
       }
-      expect(find.text(_zh.accessVoiceModel(voiceModelApproxMb)), findsNothing);
+      expect(find.text(_zh.accessVoiceModel(241)), findsNothing);
       expect(find.text(_zh.accessVoiceMetered), findsNothing);
     });
 
@@ -336,10 +329,10 @@ void main() {
       expect(prefs.getBool(SystemActionsController.disclosureKey), isTrue);
     });
 
-    testWidgets('on Android: voice still says its download, and never 回复提醒', (tester) async {
+    testWidgets('on Android: voice asks for permission without promising a model download', (tester) async {
       await pick(tester, 'android', metered: true);
-      expect(find.text(_zh.accessVoiceModel(voiceModelApproxMb)), findsOneWidget);
-      expect(find.text(_zh.accessVoiceMetered), findsOneWidget);
+      expect(find.text(_zh.accessVoiceModel(241)), findsNothing);
+      expect(find.text(_zh.accessVoiceMetered), findsNothing);
       expect(find.text(_zh.accessFeatureAlerts), findsNothing);
       expect(find.text(_zh.systemActionsTitle), findsNothing);
       expect(find.text(_zh.accessFeatureFiles), findsOneWidget);
@@ -366,11 +359,10 @@ void main() {
       expect(find.byKey(const ValueKey('access-summary-card')), findsOneWidget);
       expect(find.byKey(const ValueKey('access-voice')), findsNothing);
       final prefs = await SharedPreferences.getInstance();
-      expect(prefs.getBool(onboardingWantsVoiceKey), isFalse);
-      expect(prefs.getBool(VoiceModelController.wantedKey), isNull);
+      expect(prefs.containsKey('onboarding_wants_voice'), isFalse);
     });
 
-    testWidgets('on Android: the same pick writes the wish and says so', (tester) async {
+    testWidgets('on Android: microphone permission never authorizes a local model download', (tester) async {
       await pick(tester, 'android');
       await tester.tap(find.text(_zh.accessFeatureVoice));
       await _frames(tester);
@@ -378,9 +370,9 @@ void main() {
       await _frames(tester);
       await tester.tap(find.byKey(_primary));
       await _frames(tester, 12);
-      expect(find.byKey(const ValueKey('access-voice')), findsOneWidget);
+      expect(find.byKey(const ValueKey('access-voice')), findsNothing);
       final prefs = await SharedPreferences.getInstance();
-      expect(prefs.getBool(onboardingWantsVoiceKey), isTrue);
+      expect(prefs.containsKey('onboarding_wants_voice'), isFalse);
     });
   });
 

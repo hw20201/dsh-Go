@@ -138,7 +138,7 @@ void main() {
       ]) {
         expect(_ids(old), contains(SettingsIndex.entry(page).id), reason: old);
       }
-      expect(_ids('引擎'), contains(SettingsIndex.entry(SettingsPageId.engine).id));
+      expect(_ids('引擎'), isNot(contains('page:engine')));
     });
 
     test('「别问我」 and 「自动执行命令」 both find 权限', () {

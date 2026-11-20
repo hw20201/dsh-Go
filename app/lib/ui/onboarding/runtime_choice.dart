@@ -1,49 +1,17 @@
-// The first-run question 「DSH 在哪里运行？」 — on this phone (install the runtime) or
-// on a remote host — with what each costs. On first run a third way is offered
-// beside them, 和角色聊天: 酒馆 alone, which needs neither, and the question
-// becomes 「想怎么用 dsh-Go？」.
-
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/l10n.dart';
-import '../../performance/performance_state.dart';
-import '../../runtime/local_footprint.dart';
-import '../../runtime/runtime_state.dart';
 import '../common/pressable.dart';
 import '../theme/app_icons.dart';
 import '../theme/theme.dart';
 import 'onboarding_scaffold.dart';
 
 /// Where DSH runs, or 酒馆 without it.
-enum RuntimeOption { local, remote, tavern }
+enum RuntimeOption { remote, tavern }
 
-/// Two option cards and one 「继续」:
-///
-/// ```
-///   ▣  DSH 在哪里运行？
-///      之后可以在设置里更改
-///
-///   ╭──────────────────────────────────╮
-///   │ [▯]  本机                     ◉  │   ring + filled radio when chosen
-///   │      约 750 MB 存储 · …          │
-///   ╰──────────────────────────────────╯
-///   ╭──────────────────────────────────╮
-///   │ [▭]  远程主机  推荐           ○  │   「推荐」 only on a phone short of
-///   │      连接电脑或服务器上的 DSH    │    memory or storage
-///   ╰──────────────────────────────────╯
-///
-///   (            继续            )
-/// ```
-///
-/// The figures come from the device and the bundled manifest
-/// ([localFootprintProvider]). The suggested card starts chosen until the
-/// person picks one. A build without the native runtime
-/// ([LocalRuntimeState.available]) greys 本机 out and goes on with 远程主机.
-class RuntimeChoiceView extends ConsumerStatefulWidget {
-  const RuntimeChoiceView({super.key, required this.onLocal, required this.onRemote, this.onTavern, this.leading});
+class RuntimeChoiceView extends StatefulWidget {
+  const RuntimeChoiceView({super.key, required this.onRemote, this.onTavern, this.leading});
 
-  final VoidCallback onLocal;
   final VoidCallback onRemote;
 
   /// 和角色聊天 (first run only): 酒馆, with nothing installed. Null: no such
@@ -54,42 +22,17 @@ class RuntimeChoiceView extends ConsumerStatefulWidget {
   final Widget? leading;
 
   @override
-  ConsumerState<RuntimeChoiceView> createState() => _RuntimeChoiceViewState();
+  State<RuntimeChoiceView> createState() => _RuntimeChoiceViewState();
 }
 
-class _RuntimeChoiceViewState extends ConsumerState<RuntimeChoiceView> {
+class _RuntimeChoiceViewState extends State<RuntimeChoiceView> {
   RuntimeOption? _picked;
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final footprint = ref.watch(localFootprintProvider).value;
-    final light = ref.watch(performanceDefaultsProvider).recommendRemote;
-    final available = ref.watch(localRuntimeProvider.select((s) => s.available));
-    final suggested = !available || light || footprint?.suggestRemote == true
-        ? RuntimeOption.remote
-        : RuntimeOption.local;
-    final selected = _picked == RuntimeOption.tavern
-        ? RuntimeOption.tavern
-        : available
-        ? _picked ?? suggested
-        : RuntimeOption.remote;
+    final selected = _picked ?? RuntimeOption.remote;
     final onTavern = widget.onTavern;
-    final colors = DshColors.of(context);
-
-    final String localDetail;
-    var localWarn = false;
-    if (!available) {
-      localDetail = l10n.localEnvUnavailable;
-    } else if (footprint != null && footprint.lowStorage) {
-      localDetail = l10n.localEnvLowStorage(footprint.requiredRoundedMb!);
-      localWarn = true;
-    } else if (footprint?.unpackedMb case final unpacked?) {
-      localDetail = l10n.localEnvThisPhoneDetail(LocalFootprint.round(unpacked), LocalFootprint.engineMemoryMb);
-    } else {
-      localDetail = l10n.localEnvThisPhoneDetailShort(LocalFootprint.engineMemoryMb);
-    }
-
     return OnboardingScaffold(
       leading: widget.leading,
       children: [
@@ -101,21 +44,10 @@ class _RuntimeChoiceViewState extends ConsumerState<RuntimeChoiceView> {
         ),
         const SizedBox(height: 28),
         RuntimeOptionCard(
-          key: const ValueKey('runtime-option-local'),
-          icon: AppIcons.thisPhone,
-          title: l10n.commonThisPhone,
-          detail: localDetail,
-          detailColor: localWarn ? colors.warning : null,
-          selected: selected == RuntimeOption.local,
-          onTap: available ? () => setState(() => _picked = RuntimeOption.local) : null,
-        ),
-        const SizedBox(height: RuntimeOptionCard.gap),
-        RuntimeOptionCard(
           key: const ValueKey('runtime-option-remote'),
           icon: AppIcons.computer,
           title: l10n.commonRemoteHost,
-          detail: light ? l10n.performanceRemoteHint : l10n.localEnvRemoteDetail,
-          recommended: available && suggested == RuntimeOption.remote,
+          detail: l10n.localEnvRemoteDetail,
           selected: selected == RuntimeOption.remote,
           onTap: () => setState(() => _picked = RuntimeOption.remote),
         ),
@@ -134,7 +66,6 @@ class _RuntimeChoiceViewState extends ConsumerState<RuntimeChoiceView> {
         const SizedBox(height: 24),
         FilledButton(
           onPressed: switch (selected) {
-            RuntimeOption.local => widget.onLocal,
             RuntimeOption.remote => widget.onRemote,
             RuntimeOption.tavern => onTavern,
           },

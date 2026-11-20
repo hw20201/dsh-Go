@@ -17,7 +17,6 @@ import '../onboarding/onboarding_scaffold.dart';
 import '../phone/phone_disclosure_sheet.dart';
 import '../settings/settings_widgets.dart';
 import '../theme/app_icons.dart';
-import '../theme/theme.dart';
 import 'access_widgets.dart';
 import 'phone_mode_sheet.dart';
 
@@ -32,7 +31,6 @@ import 'phone_mode_sheet.dart';
 ///   │ ▢ 后台持续运行               ☐  │
 ///   │ ▢ 语音输入                   ☐  │
 ///   │   需要麦克风权限                  │
-///   │   离线识别，需下载约 241 MB 语音模型 │
 ///   ╰──────────────────────────────────╯
 ///   (             开启所选             )
 ///                 跳过
@@ -113,8 +111,6 @@ class _AccessPickPageState extends ConsumerState<AccessPickPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final colors = DshColors.of(context);
-    final metered = ref.watch(accessReadingsProvider.select((r) => r.value?.metered == true));
     final os = ref.watch(operatingSystemProvider);
     return OnboardingScaffold(
       children: [
@@ -130,13 +126,6 @@ class _AccessPickPageState extends ConsumerState<AccessPickPage> {
                 feature: feature,
                 selected: _picked.contains(feature),
                 onTap: () => unawaited(_toggle(feature)),
-                lines: feature == AccessFeature.voice && accessVoiceDownloads(os)
-                    ? [
-                        (text: l10n.accessFeatureVoiceNeeds, color: null),
-                        (text: l10n.accessVoiceModel(voiceModelApproxMb), color: null),
-                        if (metered) (text: l10n.accessVoiceMetered, color: colors.warning),
-                      ]
-                    : const [],
               ),
           ],
         ),
