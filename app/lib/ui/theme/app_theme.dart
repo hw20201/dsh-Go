@@ -145,9 +145,12 @@ ThemeData _build(
     visualDensity: VisualDensity.standard,
     // 水波保留但更含蓄。
     // iOS 的控件按下只变一层底色,没有水波。
+    // 非灵动档不要留 null:Material 3 下 Android 的默认水波是 InkSparkle,
+    // 它的着色器在 SkSL 后端(测试环境与不开 Impeller 的真机)上加载失败,
+    // 会抛未捕获的异步异常。显式用 InkRipple,不要着色器也能画水波。
     splashFactory: fluid
         ? AppInkGlow.splashFactory
-        : (defaultTargetPlatform == TargetPlatform.iOS ? NoSplash.splashFactory : null),
+        : (defaultTargetPlatform == TargetPlatform.iOS ? NoSplash.splashFactory : InkRipple.splashFactory),
     splashColor: scheme.primary.withValues(alpha: 0.08),
     highlightColor: scheme.primary.withValues(alpha: 0.04),
     hoverColor: scheme.onSurface.withValues(alpha: 0.04),
