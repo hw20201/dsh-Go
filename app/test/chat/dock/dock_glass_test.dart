@@ -76,6 +76,10 @@ void _expectSampling(WidgetTester tester, bool enabled) {
   }
 }
 
+GestureDetector _gestures(WidgetTester tester) => tester.widget<GestureDetector>(
+  find.descendant(of: find.byType(DockStack), matching: find.byType(GestureDetector)).first,
+);
+
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
@@ -120,23 +124,93 @@ void main() {
     });
   }
 
-  testWidgets('cancelled drag returns to the original card and resumes sampling', (tester) async {
+  testWidgets('a pointer cancellation settles the accepted drag and resumes sampling', (tester) async {
     usePhoneView(tester);
     await tester.pumpWidget(_deck());
     await tester.pumpAndSettle();
-    final original = tester.getRect(find.byKey(const ValueKey('glass-strip'))).top;
+    final render = tester.allRenderObjects.whereType<RenderDockStack>().toSet().single;
     final finger = await tester.startGesture(tester.getCenter(find.text('strip')));
     await finger.moveBy(const Offset(0, 30));
     await tester.pump();
-    await finger.moveBy(const Offset(0, 5));
+    await finger.moveBy(const Offset(0, 24));
     await tester.pump();
+    expect(render.turn, 0.5);
     _expectSampling(tester, false);
+    // Flutter delivers onEnd for an accepted drag's PointerCancelEvent.
     await finger.cancel();
     await tester.pumpAndSettle();
-    expect(tester.getRect(find.byKey(const ValueKey('glass-strip'))).top, moreOrLessEquals(original));
+    expect(render.turn, 1);
     _expectSampling(tester, true);
     expect(tester.binding.hasScheduledFrame, isFalse);
   });
+
+  for (final delta in [-24.0, 24.0]) {
+    testWidgets('drag cancel callback restores the starting card past the turn threshold ($delta)', (tester) async {
+      usePhoneView(tester);
+      await tester.pumpWidget(_deck());
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(DockStack), const Offset(0, 60));
+      await tester.pumpAndSettle();
+      final render = tester.allRenderObjects.whereType<RenderDockStack>().toSet().single;
+      expect(render.turn, 1);
+      final finger = await tester.startGesture(tester.getCenter(find.byType(DockStack)));
+      await finger.moveBy(const Offset(0, 30));
+      await tester.pump();
+      await finger.moveBy(Offset(0, delta));
+      await tester.pump();
+      expect(render.turn, 1 + delta / DockStackMetrics.turnDistance);
+      _expectSampling(tester, false);
+      // Exercise onCancel itself; an accepted pointer cancellation takes onEnd.
+      final cancel = _gestures(tester).onVerticalDragCancel;
+      expect(cancel, isNotNull);
+      cancel!();
+      await tester.pumpAndSettle();
+      expect(render.turn, 1, reason: 'cancellation ignores the +/-0.35 turn threshold');
+      _expectSampling(tester, true);
+      await finger.cancel();
+      await tester.pumpAndSettle();
+      expect(render.turn, 1);
+      expect(tester.binding.hasScheduledFrame, isFalse);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  for (final completedTurn in [0, 1]) {
+    for (final delta in [0.0, 6.0]) {
+      testWidgets('spreading retires an accepted drag and resumes glass (turn=$completedTurn, delta=$delta)', (
+        tester,
+      ) async {
+        usePhoneView(tester);
+        await tester.pumpWidget(_deck());
+        await tester.pumpAndSettle();
+        if (completedTurn == 1) {
+          await tester.drag(find.byType(DockStack), const Offset(0, 60));
+          await tester.pumpAndSettle();
+        }
+        final render = tester.allRenderObjects.whereType<RenderDockStack>().toSet().single;
+        expect(render.turn, completedTurn);
+        final foldedHeight = tester.getSize(find.byType(DockStack)).height;
+        final center = tester.getCenter(find.byType(DockStack));
+        // The tap schedules spreading; another finger wins its drag before build.
+        await tester.tapAt(center, pointer: 11);
+        final finger = await tester.startGesture(center, pointer: 12);
+        await finger.moveBy(const Offset(0, 32));
+        if (delta != 0) await finger.moveBy(Offset(0, delta));
+        await tester.pump();
+        expect(_gestures(tester).onVerticalDragStart, isNull);
+        expect(render.turn, closeTo(completedTurn + delta / DockStackMetrics.turnDistance, 1e-9));
+        _expectSampling(tester, false);
+        await finger.up();
+        await tester.pumpAndSettle();
+        expect(render.turn, completedTurn, reason: 'retiring the drag restores its completed starting turn');
+        expect(tester.getSize(find.byType(DockStack)).height, greaterThan(foldedHeight));
+        _expectSampling(tester, true);
+        expect(_GlassCard.mounts, {'todo': 1, 'goal': 1, 'strip': 1});
+        expect(tester.binding.hasScheduledFrame, isFalse);
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
 
   testWidgets('folding and rapid successive turns preserve all mounted card content', (tester) async {
     usePhoneView(tester);
@@ -241,13 +315,20 @@ void main() {
     usePhoneView(tester);
     await tester.pumpWidget(_deck());
     await tester.pumpAndSettle();
-    await tester.drag(find.byType(DockStack), const Offset(0, 40));
+    await tester.drag(find.byType(DockStack), const Offset(0, 60));
     await tester.pump();
-    await tester.pump(AppMotion.standard);
-    // The turn has finished and scheduled clear-in, whose value is still zero.
+    // Completion is strictly after the duration, not at its exact boundary.
+    await tester.pump(AppMotion.standard + const Duration(milliseconds: 1));
+    final render = tester.allRenderObjects.whereType<RenderDockStack>().toSet().single;
+    expect(render.turn, 1);
+    expect(tester.widget<GlassBackdropScope>(find.byType(GlassBackdropScope)).settled, 0);
+    expect(tester.binding.transientCallbackCount, 1, reason: 'only the zero-value clear-in ticker remains');
+    _expectSampling(tester, false);
     final finger = await tester.startGesture(tester.getCenter(find.byType(DockStack)));
     await finger.moveBy(const Offset(0, 24));
-    await tester.pump(AppMotion.glassIn);
+    await tester.pump(AppMotion.glassIn + const Duration(milliseconds: 1));
+    expect(tester.widget<GlassBackdropScope>(find.byType(GlassBackdropScope)).settled, 0);
+    expect(tester.binding.transientCallbackCount, 0, reason: 'the new hold stopped clear-in before its first tick');
     _expectSampling(tester, false);
     await finger.up();
     await tester.pumpAndSettle();

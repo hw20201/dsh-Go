@@ -224,6 +224,9 @@ class _DockStackState extends ConsumerState<DockStack> with TickerProviderStateM
     } else if (!preference && _spread.status != AnimationStatus.forward && _spread.value < 1) {
       _spread.forward();
     }
+    // Removing an accepted drag recognizer does not deliver end/cancel.
+    // Retire its hold and unfinished turn before dropping the callbacks.
+    if (!folded) _swipeCancel();
     final accessory = widget.accessory;
     final layout = AnimatedBuilder(
       animation: Listenable.merge([_curve, _turn, _settled]),
