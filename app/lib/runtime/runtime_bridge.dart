@@ -572,10 +572,15 @@ class ManagedSkillInstallResponse {
 /// Dart side of the `dsh/runtime` platform channels implemented in Kotlin.
 ///
 /// The on-device engine is gone: this fork is remote-only (SSH / relay), so
-/// there is no native side anymore. Every call answers as if the runtime were
-/// permanently not installed. The remote paths never touch this class.
+/// there is no native side anymore. The calls below still forward to the
+/// `dsh/runtime` channel and throw MissingPluginException when no native side
+/// answers; callers already handle that as "unavailable". The remote paths
+/// never touch this class.
 class RuntimeBridge {
-  RuntimeBridge();
+  RuntimeBridge({MethodChannel? methods})
+      : _methods = methods ?? const MethodChannel('dsh/runtime');
+
+  final MethodChannel _methods;
 
   Stream<RuntimeEvent> get events => const Stream<RuntimeEvent>.empty();
 
@@ -600,29 +605,53 @@ class RuntimeBridge {
     bool phoneStorage = false,
     EngineMode? mode,
     bool visualReplies = true,
-  }) async {}
+  }) => _methods.invokeMethod<void>('start', {
+    'env': env,
+    'phoneStorage': phoneStorage,
+    'mode': mode?.name,
+    'visualReplies': visualReplies,
+  });
 
-  Future<LastKnownGood> lastKnownGood() async => const LastKnownGood.none();
+  Future<LastKnownGood> lastKnownGood() async {
+    final map = await _methods.invokeMapMethod<Object?, Object?>('lastKnownGood');
+    return map == null ? const LastKnownGood.none() : LastKnownGood.fromMap(map);
+  }
 
-  Future<LastKnownGood> restoreLastKnownGood() async => const LastKnownGood.none();
+  Future<LastKnownGood> restoreLastKnownGood() async {
+    final map = await _methods.invokeMapMethod<Object?, Object?>('restoreLastKnownGood');
+    return map == null ? const LastKnownGood.none() : LastKnownGood.fromMap({...map, 'available': true});
+  }
 
   Future<String?> reminderAccess() async => null;
 
-  Future<List<SafeHazard>> safePreflight() async => const [];
+  Future<List<SafeHazard>> safePreflight() async {
+    final list = await _methods.invokeListMethod<Object?>('safePreflight') ?? const [];
+    return [
+      for (final e in list)
+        if (e is Map) SafeHazard.fromMap(e.cast<Object?, Object?>()),
+    ];
+  }
 
-  Future<List<String>> moveAside(List<String> paths) async => const [];
+  Future<List<String>> moveAside(List<String> paths) async {
+    final list = await _methods.invokeListMethod<Object?>('moveAside', {'paths': paths}) ?? const [];
+    return [
+      for (final e in list)
+        if (e is Map && e['to'] is String) e['to'] as String,
+    ];
+  }
 
-  Future<void> clearFailure() async {}
+  Future<void> clearFailure() => _methods.invokeMethod<void>('clearFailure');
 
-  Future<void> setAutoSafe(bool enabled) async {}
+  Future<void> setAutoSafe(bool enabled) => _methods.invokeMethod<void>('setAutoSafe', {'enabled': enabled});
 
-  Future<void> setWorkspaceRecovery(bool enabled) async {}
+  Future<void> setWorkspaceRecovery(bool enabled) =>
+      _methods.invokeMethod<void>('setWorkspaceRecovery', {'enabled': enabled});
 
   Future<void> setDirectEngine(bool enabled) async {}
 
   Future<void> setTawcEngine(bool enabled) async {}
 
-  Future<List<String>> failureLog() async => const [];
+  Future<List<String>> failureLog() async => (await _methods.invokeListMethod<String>('failureLog')) ?? const [];
 
   Future<StorageAccess> storageStatus() async => StorageAccess.fromMap(const {});
 
