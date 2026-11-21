@@ -648,11 +648,12 @@ class _ComposerGlass extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final open = this.open;
-    if (open == null) return GlassSurface(tier: GlassTier.chrome, borderRadius: AppShape.radiusXl, child: child);
+    if (open == null) return GlassSurface(tier: GlassTier.chrome, blur: false, borderRadius: AppShape.radiusXl, child: child);
     return AnimatedBuilder(
       animation: open,
       builder: (context, child) => GlassSurface(
         tier: GlassTier.chrome,
+        blur: false,
         borderRadius: BorderRadius.lerp(AppShape.radiusXl, _opened, open.value),
         child: child,
       ),
