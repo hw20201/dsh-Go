@@ -242,6 +242,7 @@ class _FoldButton extends StatelessWidget {
       child: GlassSurface(
         key: const ValueKey('dock-fold'),
         tier: GlassTier.chrome,
+        blur: false,
         stadium: true,
         // One backdrop sample with the deck's bars.
         grouped: true,
