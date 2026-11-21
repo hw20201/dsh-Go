@@ -58,4 +58,19 @@ Under DSH Remote's **Connection route** on the remote hosts page, choose **Autom
 
 **Compact history** is off by default. Supporting DSH Remote Hosts summarize historical tool arguments and output to reduce history transfer; message text, live replies, approvals and original Host records stay unchanged. Switch to another remote host and back, or restart the app, to apply. The current client and its automatic reconnects retain their original mode to avoid mixing cached history. After turning it off, select the host again and reopen the chat to load full history. Older Hosts continue sending full history; SSH is unaffected.
 
-DSH Remote connects to one host at a time; switching disconnects the previous one. Over DSH Remote: you can send images only, plugins can only be turned on or off, and DS Bot and chat log export aren't available.
+DSH Remote connects to one host at a time; switching disconnects the previous one. Over DSH Remote: you can send images only, plugins can only be turned on or off, and DS Bot and chat log export aren't available. Conversation backups use a separate session-transfer capability, not chat log export.
+
+## Conversation backups and restore
+
+<!-- nav: commonSettings,commonRemoteHost,backupTitle -->
+`Settings › Remote host › Conversation backups`
+
+This feature is available only for DSH Remote / Relay hosts. SSH and separate direct DSH address connections are not supported yet. The source host must advertise `session.transfer` export support, and the target must advertise import support; each is checked independently. Older plugins without the respective capability are identified.
+
+Connect the source Remote host, select a workspace and either one conversation or **Entire workspace**, then tap **Back up to phone**. Switch to the target host, reopen this page, choose an existing target workspace and tap a local backup to restore. Backup transfers are limited to 8 MiB per conversation; an entire workspace is backed up one conversation at a time and does not bypass this limit.
+
+Files and the catalog are encrypted in app-private storage, with the key protected by system secret storage. Uninstalling the app or clearing app data loses these backups. Only complete entries whose length and SHA-256 match are published; interrupting a batch keeps completed entries. Every restore creates a new conversation from the full history snapshot without overwriting existing conversations or merging later messages. Attachments, workspace source files and cross-session relationships are excluded.
+
+If a commit disconnects or its outcome is unclear, **Restores to check** keeps the pending record. Connect to the original target with the original Remote device identity and tap **Check**. The server retains results for about five minutes; if unknown, inspect the target first. The app never automatically imports again. After checking, you can acknowledge and clear the pending record; another import may create a duplicate. If history was restored but not attached to the workspace, find the shown conversation ID instead of importing again. Deleting a local backup never deletes conversations on hosts.
+
+Remote currently connects to one host at a time, so copying uses backup-to-phone followed by switching and restoring, rather than simultaneous host-to-host forwarding.

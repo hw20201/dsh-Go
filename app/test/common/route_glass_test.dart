@@ -88,6 +88,85 @@ Future<void> _pumpApp(WidgetTester tester) async {
 final _homeInits = <int>[];
 final _secondInits = <int>[];
 
+class _GlassConfig {
+  const _GlassConfig({
+    this.tier = GlassTier.chrome,
+    this.blur,
+    this.style,
+    this.glassBlur = true,
+    this.highContrast = false,
+  });
+
+  final GlassTier tier;
+  final bool? blur;
+  final GlassStyle? style;
+  final bool glassBlur;
+  final bool highContrast;
+}
+
+const _flatStyle = GlassStyle(
+  fill: Colors.white,
+  fallbackFill: Colors.white,
+  hairline: Colors.transparent,
+  rim: Colors.transparent,
+);
+
+/// Its route animation is set by hand, so a scheduled ticker can only belong
+/// to the surface's recovery, not to a Navigator transition or theme animation.
+class _ControlledGlassRoute extends PageRouteBuilder<void> {
+  _ControlledGlassRoute(this.motion, Widget child)
+    : super(
+        transitionDuration: Duration.zero,
+        reverseTransitionDuration: Duration.zero,
+        pageBuilder: (_, _, _) => child,
+      );
+
+  final Animation<double> motion;
+
+  @override
+  Animation<double> createAnimation() => motion;
+}
+
+Future<({AnimationController motion, ValueNotifier<_GlassConfig> config})> _pumpControlledGlass(
+  WidgetTester tester,
+  _GlassConfig initial,
+) async {
+  final motion = AnimationController(vsync: tester, value: 1);
+  final config = ValueNotifier(initial);
+  final navigator = GlobalKey<NavigatorState>();
+  addTearDown(() async {
+    await tester.pumpWidget(const SizedBox.shrink());
+    config.dispose();
+    motion.dispose();
+  });
+  await tester.pumpWidget(MaterialApp(navigatorKey: navigator, home: const SizedBox.shrink()));
+  navigator.currentState!.push(
+    _ControlledGlassRoute(
+      motion.view,
+      ValueListenableBuilder<_GlassConfig>(
+        valueListenable: config,
+        builder: (context, value, _) => Theme(
+          data: buildLightTheme(glassBlur: value.glassBlur),
+          child: MediaQuery(
+            data: MediaQuery.of(context).copyWith(highContrast: value.highContrast),
+            child: Scaffold(
+              body: GlassSurface(
+                key: const ValueKey('glass-controlled'),
+                tier: value.tier,
+                blur: value.blur,
+                style: value.style,
+                child: const SizedBox(width: 100, height: 100),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+  return (motion: motion, config: config);
+}
+
 void main() {
   setUp(() {
     _homeInits.clear();
@@ -161,4 +240,73 @@ void main() {
     final glass = _chromeStyle(tester, 'home');
     expect(_fill(tester, 'home'), glass.fill);
   });
+
+  for (final (label, disabled) in [
+    ('card', const _GlassConfig(tier: GlassTier.card)),
+    ('pill', const _GlassConfig(tier: GlassTier.pill)),
+    ('opaque chrome', const _GlassConfig(blur: false)),
+    ('unblurred style', const _GlassConfig(style: _flatStyle)),
+    ('reduced transparency', const _GlassConfig(glassBlur: false)),
+    ('high contrast', const _GlassConfig(highContrast: true)),
+  ]) {
+    testWidgets('$label has no recovery ticker after route motion', (tester) async {
+      final driver = await _pumpControlledGlass(tester, disabled);
+      final fill = _fill(tester, 'controlled');
+      driver.motion.value = 0.5;
+      await tester.pump();
+      expect(
+        find.descendant(of: find.byKey(const ValueKey('glass-controlled')), matching: find.byType(BackdropFilter)),
+        findsNothing,
+      );
+      driver.motion.value = 1;
+      await tester.pump();
+      expect(_fill(tester, 'controlled'), fill);
+      expect(tester.binding.transientCallbackCount, 0, reason: 'non-blur paint is unchanged by route recovery');
+    });
+
+    testWidgets('$label can enable, cancel and re-enable route recovery', (tester) async {
+      final driver = await _pumpControlledGlass(tester, disabled);
+      driver.motion.value = 0.5;
+      await tester.pump();
+      // Enabling during motion must subscribe immediately and stay opaque.
+      driver.config.value = const _GlassConfig();
+      await tester.pump();
+      expect(_blurring(tester, 'controlled'), isFalse);
+      final style = _chromeStyle(tester, 'controlled');
+      expect(_fill(tester, 'controlled'), style.fallbackFill);
+      driver.motion.value = 1;
+      await tester.pump();
+      expect(tester.binding.transientCallbackCount, greaterThan(0));
+      await tester.pump(const Duration(milliseconds: 60));
+      expect(_blurring(tester, 'controlled'), isTrue);
+      expect(_fill(tester, 'controlled'), isNot(style.fallbackFill));
+      expect(_fill(tester, 'controlled'), isNot(style.fill));
+
+      // Disabling halfway through cancels its ticker and both route bindings.
+      driver.config.value = disabled;
+      await tester.pump();
+      expect(tester.binding.transientCallbackCount, 0);
+      driver.motion.value = 0.5;
+      driver.motion.value = 1;
+      await tester.pump();
+      expect(tester.binding.transientCallbackCount, 0, reason: 'disabled surfaces must not restart recovery');
+
+      // Re-enable the same State: a second ticker must not be allocated.
+      driver.config.value = const _GlassConfig();
+      await tester.pump();
+      driver.motion.value = 0.5;
+      await tester.pump();
+      expect(_blurring(tester, 'controlled'), isFalse);
+      driver.motion.value = 1;
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 120));
+      expect(_blurring(tester, 'controlled'), isTrue);
+      expect(_fill(tester, 'controlled'), style.fill);
+      // Interpolation reaches its end at 120ms, but completion requires time
+      // strictly greater than its duration. Let the next frame retire the ticker.
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(tester.binding.transientCallbackCount, 0);
+      expect(tester.takeException(), isNull);
+    });
+  }
 }

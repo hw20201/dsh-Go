@@ -121,19 +121,44 @@ class GlassSurface extends StatefulWidget {
 /// 时观感、3 个模糊上限、blurEnabled / 高对比度降级都不变;不在路由里
 /// (Overlay、测试裸 widget)时永远是玻璃。
 class _GlassSurfaceState extends State<GlassSurface> with SingleTickerProviderStateMixin {
-  /// 路由停稳后淡回玻璃的进度。1 = 玻璃;过渡一开始立刻置 0。
-  late final AnimationController _routeSettled = AnimationController(
-    vsync: this,
-    duration: AppMotion.glassIn,
-    value: 1,
-  );
-
+  /// Only surfaces that actually blur follow route motion. Keep the controller
+  /// once created so enabling blur again reuses the same ticker.
+  AnimationController? _routeSettled;
+  bool _tracksRoute = false;
   Animation<double>? _route;
   Animation<double>? _secondary;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _updateRouteBinding();
+  }
+
+  @override
+  void didUpdateWidget(GlassSurface oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.blur != widget.blur || oldWidget.tier != widget.tier || oldWidget.style != widget.style) {
+      _updateRouteBinding();
+    }
+  }
+
+  bool _reduceBlur(DshSurfaces surfaces) =>
+      !surfaces.blurEnabled || (MediaQuery.maybeHighContrastOf(context) ?? false) || uiTraceNoBlur;
+
+  void _updateRouteBinding() {
+    final surfaces = DshSurfaces.of(context);
+    final style = widget.style ?? surfaces.glass(widget.tier);
+    _tracksRoute = !_reduceBlur(surfaces) && (widget.blur ?? style.blurs);
+    if (!_tracksRoute) {
+      _route?.removeStatusListener(_syncRoute);
+      _secondary?.removeStatusListener(_syncRoute);
+      _route = null;
+      _secondary = null;
+      _routeSettled?.stop();
+      _routeSettled?.value = 1;
+      return;
+    }
+    _routeSettled ??= AnimationController(vsync: this, duration: AppMotion.glassIn, value: 1);
     final route = ModalRoute.of(context);
     final animation = route?.animation;
     final secondary = route?.secondaryAnimation;
@@ -153,20 +178,21 @@ class _GlassSurfaceState extends State<GlassSurface> with SingleTickerProviderSt
   void dispose() {
     _route?.removeStatusListener(_syncRoute);
     _secondary?.removeStatusListener(_syncRoute);
-    _routeSettled.dispose();
+    _routeSettled?.dispose();
     super.dispose();
   }
 
   /// 路由在动就按 settled=0;都停稳了再淡回玻璃。
   void _syncRoute([AnimationStatus? _]) {
+    final settled = _routeSettled!;
     final moving = (_route?.status.isAnimating ?? false) || (_secondary?.status.isAnimating ?? false);
     if (moving) {
-      if (_routeSettled.value != 0) _routeSettled.value = 0;
-    } else if (_routeSettled.value != 1) {
+      if (settled.value != 0) settled.value = 0;
+    } else if (settled.value != 1) {
       if (AppMotion.reduced(context)) {
-        _routeSettled.value = 1;
-      } else if (!_routeSettled.isForwardOrCompleted) {
-        _routeSettled.forward();
+        settled.value = 1;
+      } else if (!settled.isForwardOrCompleted) {
+        settled.forward();
       }
     }
   }
@@ -174,8 +200,8 @@ class _GlassSurfaceState extends State<GlassSurface> with SingleTickerProviderSt
   /// 外面传的 settled(SlidingGlass)与路由 settled 取最小:任一说"在动"就 opaque。
   double _effectiveSettled() {
     final settled = widget.settled;
-    if (settled == null) return _routeSettled.value;
-    final route = _routeSettled.value;
+    final route = _routeSettled!.value;
+    if (settled == null) return route;
     return settled < route ? settled : route;
   }
 
@@ -198,8 +224,9 @@ class _GlassSurfaceState extends State<GlassSurface> with SingleTickerProviderSt
 
   @override
   Widget build(BuildContext context) {
+    if (!_tracksRoute) return _buildGlass(context, 1, widget.child);
     return AnimatedBuilder(
-      animation: _routeSettled,
+      animation: _routeSettled!,
       builder: (context, child) => _buildGlass(context, _effectiveSettled(), child),
       child: widget.child,
     );
@@ -208,8 +235,7 @@ class _GlassSurfaceState extends State<GlassSurface> with SingleTickerProviderSt
   Widget _buildGlass(BuildContext context, double settled, Widget? child) {
     final surfaces = DshSurfaces.of(context);
     final s = widget.style ?? surfaces.glass(widget.tier);
-    final highContrast = MediaQuery.maybeHighContrastOf(context) ?? false;
-    final reduce = !surfaces.blurEnabled || highContrast || uiTraceNoBlur;
+    final reduce = _reduceBlur(surfaces);
     final useBlur = !reduce && (widget.blur ?? s.blurs);
     if (uiTraceEnabled) {
       uiTrace('glass', 'build', {'tier': widget.tier.name, 'blur': useBlur, 'grouped': widget.grouped});
