@@ -53,7 +53,6 @@ Finder _page(String slot, String cell) => find.byKey(ValueKey('seam-page-$slot-$
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
-    openedWeb.clear();
   });
 
   testWidgets('overlay is off by default; each plugin opts in and out independently', (tester) async {
@@ -122,17 +121,14 @@ void main() {
     });
   }
 
-  testWidgets('page entry keeps a Web fallback when no island budget is available', (tester) async {
+  testWidgets('page entry reports unavailable when no island budget is available', (tester) async {
     await _pump(tester, budget: const NoIslandBudget());
     expect(find.byKey(const ValueKey('plugin-overlay-switch')), findsNothing);
     await tester.tap(_page(Slots.settingsPluginsTab, 'settings'));
     await tester.pumpAndSettle();
     expect(find.byType(PluginSeatPage), findsOneWidget);
     expect(find.byType(FakeIsland), findsNothing);
-    expect(find.text('在网页版打开'), findsOneWidget);
-    await tester.tap(find.text('在网页版打开'));
-    await tester.pumpAndSettle();
-    expect(openedWeb, hasLength(1));
+    expect(find.text('在网页版打开'), findsNothing);
   });
 
   testWidgets('ui.json wins, locks the switch and can restore the saved local choice', (tester) async {

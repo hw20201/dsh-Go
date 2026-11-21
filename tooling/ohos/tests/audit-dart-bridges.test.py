@@ -232,7 +232,6 @@ class BridgeInventoryTest(unittest.TestCase):
         wrapper.write_text("class AppSecureStorage { bool get oh => _injected == null && (_platform ?? Platform.operatingSystem) == 'ohos'; }")
         consumers={
             'app/lib/remote/secret_store.dart': 'class SecureSecretStore { SecureSecretStore([FlutterSecureStorage? storage]) : _storage = AppSecureStorage(storage); final AppSecureStorage _storage; }',
-            'app/lib/forum/forum_auth.dart': 'class SecureForumStore { SecureForumStore([FlutterSecureStorage? storage]) : _storage = AppSecureStorage(storage); final AppSecureStorage _storage; }',
             'app/lib/state/settings_state.dart': 'class SettingsController { static const _secure = AppSecureStorage(); }',
             'app/lib/state/provider_keys.dart': 'class SecureProviderKeyVault { const SecureProviderKeyVault([this._injected]); final FlutterSecureStorage? _injected; AppSecureStorage get _storage => AppSecureStorage(_injected); }',
             'app/lib/share_hosted/hosted_links_state.dart': 'class SecureHostedLinkStore { const SecureHostedLinkStore([this._injected]); final FlutterSecureStorage? _injected; AppSecureStorage get _storage => AppSecureStorage(_injected); }'}

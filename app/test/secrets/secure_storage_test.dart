@@ -7,7 +7,6 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:dsh_app/forum/forum_auth.dart';
 import 'package:dsh_app/remote/secret_store.dart';
 import 'package:dsh_app/secrets/secure_storage.dart';
 import 'package:dsh_app/share_hosted/hosted_links_state.dart';
@@ -76,8 +75,10 @@ void main() {
     messenger.setMockMethodCallHandler(channel, (_) async {
       throw PlatformException(code: 'secrets_unreadable', message: '原加密数据未被覆盖。');
     });
-    await expectLater(store.write(key: 'hosted_links', value: '[]'),
-        throwsA(isA<PlatformException>().having((error) => error.code, 'code', 'secrets_unreadable')));
+    await expectLater(
+      store.write(key: 'hosted_links', value: '[]'),
+      throwsA(isA<PlatformException>().having((error) => error.code, 'code', 'secrets_unreadable')),
+    );
   });
 
   test('OH recovery is explicitly confirmed and propagates native failure', () async {
@@ -92,8 +93,10 @@ void main() {
     messenger.setMockMethodCallHandler(channel, (_) async {
       throw PlatformException(code: 'secrets_io');
     });
-    await expectLater(store.recover(confirmed: true),
-        throwsA(isA<PlatformException>().having((error) => error.code, 'code', 'secrets_io')));
+    await expectLater(
+      store.recover(confirmed: true),
+      throwsA(isA<PlatformException>().having((error) => error.code, 'code', 'secrets_io')),
+    );
   });
 
   test('missing HUKS key stays explicit and never triggers automatic recovery', () async {
@@ -102,8 +105,10 @@ void main() {
       calls.add(call);
       throw PlatformException(code: 'secrets_key_missing');
     });
-    await expectLater(store.readAll(),
-        throwsA(isA<PlatformException>().having((error) => error.code, 'code', 'secrets_key_missing')));
+    await expectLater(
+      store.readAll(),
+      throwsA(isA<PlatformException>().having((error) => error.code, 'code', 'secrets_key_missing')),
+    );
     expect(calls.map((call) => call.method), ['readAll']);
   });
 
@@ -128,13 +133,11 @@ void main() {
     expect(calls, isEmpty);
   });
 
-  test('the five existing defaults retain Android keys, namespaces and const construction', () async {
+  test('the four remaining defaults retain Android keys, namespaces and const construction', () async {
     final remote = SecureSecretStore();
-    final forum = SecureForumStore();
     const provider = SecureProviderKeyVault();
     const hosted = SecureHostedLinkStore();
     await remote.write('password', 'ssh');
-    await forum.write('keypair', '{"private":"rsa"}');
     await provider.write('custom', 'provider');
     await hosted.save([]);
     final container = ProviderContainer();
@@ -146,8 +149,11 @@ void main() {
     await ready.future;
     await container.read(settingsProvider.notifier).setApiKey('  deepseek  ');
     expect(await const FlutterSecureStorage().readAll(), {
-      'remote.password': 'ssh', 'forum.keypair': '{"private":"rsa"}',
-      'provider_key_custom': 'provider', 'hosted_links': '[]', 'deepseek_api_key': 'deepseek',
+      'remote.password': 'ssh',
+      'forum.keypair': '{"private":"rsa"}',
+      'provider_key_custom': 'provider',
+      'hosted_links': '[]',
+      'deepseek_api_key': 'deepseek',
     });
     expect(await provider.readAll(), {'custom': 'provider'});
     expect(calls, isEmpty);

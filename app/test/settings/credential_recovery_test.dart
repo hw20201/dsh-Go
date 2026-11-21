@@ -1,16 +1,12 @@
 // 清除已保存的密钥 on HarmonyOS: asked for, once, in the person's own words; what
 // was read from the vault doesn't come back; Android never sees any of it.
 
-import 'package:dsh_app/forum/forum_auth.dart';
-import 'package:dsh_app/forum/forum_config.dart';
-import 'package:dsh_app/forum/forum_crypto.dart';
 import 'package:dsh_app/l10n/l10n.dart';
 import 'package:dsh_app/remote/relay/dsh_remote_backend.dart';
 import 'package:dsh_app/remote/secret_store.dart';
 import 'package:dsh_app/secrets/secure_storage.dart';
 import 'package:dsh_app/share_hosted/hosted_link.dart';
 import 'package:dsh_app/share_hosted/hosted_links_state.dart';
-import 'package:dsh_app/state/account_state.dart' show accountBrowserProvider;
 import 'package:dsh_app/state/android_features.dart';
 import 'package:dsh_app/state/credential_recovery.dart';
 import 'package:dsh_app/state/hosts_state.dart';
@@ -28,7 +24,6 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../account/support.dart' show FakeBrowser;
 import '../engine_settings/support.dart' as engine;
 import '../remote/support/fake_relay.dart';
 import '../shell/golden_harness.dart';
@@ -298,17 +293,12 @@ void main() {
             existing: SshHostConfig(id: 'h1', name: 'Mac', host: 'example.invalid', user: 'me'),
           ),
           brightness: Brightness.light,
-          overrides: [
-            secretStoreProvider.overrideWithValue(secrets),
-            operatingSystemProvider.overrideWithValue(os),
-          ],
+          overrides: [secretStoreProvider.overrideWithValue(secrets), operatingSystemProvider.overrideWithValue(os)],
         ),
       );
       await tester.pumpAndSettle();
       await tester.enterText(
-        find.byWidgetPredicate(
-          (widget) => widget is TextField && widget.keyboardType == TextInputType.visiblePassword,
-        ),
+        find.byWidgetPredicate((widget) => widget is TextField && widget.keyboardType == TextInputType.visiblePassword),
         'new-password',
       );
       await tester.pump();
@@ -349,22 +339,6 @@ void main() {
       });
     }
 
-    test('forum sign-in: says the keys can\'t be read and where to go', () async {
-      final c = ProviderContainer(
-        overrides: [
-          forumSecretStoreProvider.overrideWithValue(_UnreadableSecrets()),
-          forumKeyPairFactoryProvider.overrideWithValue(() async => generateForumKeyPairSync()),
-          accountBrowserProvider.overrideWithValue(FakeBrowser()),
-        ],
-      );
-      addTearDown(c.dispose);
-      c.read(forumAuthProvider);
-      await pumpEventQueue();
-      expect(await c.read(forumAuthProvider.notifier).signIn(), isFalse);
-      expect(c.read(forumAuthProvider).phase, ForumAuthPhase.signedOut);
-      expect(c.read(forumAuthProvider).error, appL10n.harmonyCredentialsUnreadableHint);
-    });
-
     test('the failures trying again can\'t fix are exactly these three', () {
       PlatformException failure(String code) => PlatformException(code: code);
       expect(credentialsUnreadable(failure('secrets_unreadable')), isTrue);
@@ -380,9 +354,7 @@ void main() {
   group('after clearing', () {
     late _MemoryLinks links;
     late _MemoryKeys keys;
-    late MemorySecretStore forum;
     late List<FakeRelayBackend> relays;
-    late int keyPairsMade;
     late ProviderContainer c;
 
     setUp(() {
@@ -398,26 +370,18 @@ void main() {
         ),
       ]);
       keys = _MemoryKeys({'custom': 'old-provider-key'});
-      forum = MemorySecretStore({'session:$forumDefaultBaseUrl': '{"key":"old","client":"c"}'});
       relays = [];
-      keyPairsMade = 0;
       FlutterSecureStorage.setMockInitialValues({'deepseek_api_key': 'old-api-key'});
       vault.whenCleared(() {
         FlutterSecureStorage.setMockInitialValues({});
         links.saved = [];
         keys.keys.clear();
-        forum.values.clear();
       });
       c = ProviderContainer(
         overrides: [
           operatingSystemProvider.overrideWithValue('ohos'),
           hostedLinkStoreProvider.overrideWithValue(links),
           providerKeyVaultProvider.overrideWithValue(keys),
-          forumSecretStoreProvider.overrideWithValue(forum),
-          forumKeyPairFactoryProvider.overrideWithValue(() async {
-            keyPairsMade++;
-            return generateForumKeyPairSync();
-          }),
           relayBackendProvider.overrideWith((ref) {
             final relay = FakeRelayBackend(user: relays.isEmpty ? sampleRelayUser : null);
             relays.add(relay);
@@ -437,16 +401,12 @@ void main() {
     test('nothing read from the vault is left to write back', () async {
       c.listen(settingsProvider, (_, _) {});
       c.listen(hostedLinksProvider, (_, _) {});
-      c.listen(forumAuthProvider, (_, _) {});
       c.listen(relayAccountProvider, (_, _) {});
       await settle();
       expect(c.read(settingsProvider).apiKey, 'old-api-key');
       expect(c.read(settingsProvider).customProviderIds, {'custom'});
       expect(c.read(hostedLinksProvider).links, hasLength(1));
-      expect(c.read(forumAuthProvider).signedIn, isTrue);
       expect(c.read(relayAccountProvider).value?.signedIn, isTrue);
-      await c.read(forumAuthProvider.notifier).authorizeUrl();
-      expect(keyPairsMade, 1);
       final relaysBefore = relays.length;
       c.read(activeHostProvider.notifier).select(const HostRef.relay('r1'));
 
@@ -458,16 +418,10 @@ void main() {
       expect(c.read(settingsProvider).customProviderIds, isEmpty);
       expect(c.read(settingsProvider).loaded, isTrue, reason: 'no trip back to the splash');
       expect(c.read(hostedLinksProvider).links, isEmpty);
-      expect(c.read(forumAuthProvider).signedIn, isFalse);
+      expect(links.saved, isEmpty);
       expect(relays.length, greaterThan(relaysBefore), reason: 'the old account object is gone');
       expect(c.read(relayAccountProvider).value?.signedIn, isFalse);
       expect(c.read(activeHostProvider), HostRef.local);
-
-      // The next save writes what's there now: the old link stays gone, and the
-      // forum's key pair is made anew rather than remembered.
-      await c.read(forumAuthProvider.notifier).authorizeUrl();
-      expect(keyPairsMade, 2);
-      expect(links.saved, isEmpty);
     });
 
     test('a failed clear leaves the file for another try and reports it', () async {

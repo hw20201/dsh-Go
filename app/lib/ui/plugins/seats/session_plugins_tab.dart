@@ -71,7 +71,6 @@ class SessionPluginsTab extends ConsumerWidget {
       return _SingleTab(seat: plan.seat, item: item, name: name(o));
     }
 
-    final seat = plan.seat;
     return ListView(
       padding: EdgeInsets.fromLTRB(0, 4, 0, MediaQuery.paddingOf(context).bottom + 24),
       children: [
@@ -87,20 +86,11 @@ class SessionPluginsTab extends ConsumerWidget {
                   return ListPageRow(
                     icon: AppIcons.plugin,
                     title: title,
-                    meta: web ? l10n.commonWeb : null,
-                    chevron: true,
-                    onTap: () {
-                      if (web) {
-                        final target = seatWebTarget(
-                          o,
-                          sessionId: o.slot == Slots.main ? null : seat.sessionId,
-                          bundle: seatBundleOf(bundles, o.package),
-                        );
-                        ref.read(seatWebOpenerProvider)(context, ref, target);
-                      } else {
-                        Navigator.of(context).push(PluginSeatPage.route(title: title, request: pageOf(o)));
-                      }
-                    },
+                    meta: web ? l10n.pluginsUnavailable : null,
+                    chevron: !web,
+                    onTap: web
+                        ? null
+                        : () => Navigator.of(context).push(PluginSeatPage.route(title: title, request: pageOf(o))),
                   );
                 },
               ),
@@ -112,7 +102,7 @@ class SessionPluginsTab extends ConsumerWidget {
 }
 
 /// One plugin tab filling the page under its name; when its island can't
-/// come up, the way to DSH Web alone (it names the tab itself).
+/// come up, show an unavailable state (it names the tab itself).
 class _SingleTab extends ConsumerStatefulWidget {
   const _SingleTab({required this.seat, required this.item, required this.name});
 

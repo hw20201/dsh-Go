@@ -5,7 +5,6 @@ import 'package:dsh_app/ui/common/tile_grid.dart';
 import 'package:dsh_app/ui/features/all_features_page.dart';
 import 'package:dsh_app/ui/features/feature_catalog.dart';
 import 'package:dsh_app/ui/files/files_page.dart';
-import 'package:dsh_app/ui/forum/forum_home_page.dart';
 import 'package:dsh_app/ui/shell/session_search_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -27,11 +26,7 @@ class _Inbox extends DsBotInboxController {
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  test('论坛有原生入口，文件标题一致，搜索使用返回结果的 action', () {
-    final forum = item('forum');
-    expect(forum.title, '论坛');
-    expect(forum.native!(null), isA<ForumHomePage>());
-    expect(forum.web, isNull);
+  test('文件标题一致，搜索使用返回结果的原生 action', () {
     final files = item('files');
     expect(files.title, '文件');
     expect(files.native!('s1'), isA<WorkspaceFilesPage>());
@@ -39,13 +34,18 @@ void main() {
     expect(item('search').native, isNull);
   });
 
-  test('只有引擎语音和网页版保留 web 入口', () {
-    final webIds = featureSections
-        .expand((section) => section.items)
-        .where((item) => item.web != null)
-        .map((item) => item.id)
-        .toSet();
-    expect(webIds, {'voice-input', 'web'});
+  test('catalog entries are native or app actions, with removed pages absent', () {
+    final items = featureSections.expand((section) => section.items).toList();
+    final ids = items.map((item) => item.id).toSet();
+    expect(items.where((item) => item.native == null && item.action == null), isEmpty);
+    expect(ids, isNot(contains('web')));
+    expect(ids, isNot(contains('tavern')));
+    expect(ids, isNot(contains('community')));
+    expect(ids, isNot(contains('forum')));
+    for (final id in ['voice-input', 'share-profile']) {
+      expect(item(id).action, isNotNull, reason: id);
+      expect(item(id).native, isNull, reason: id);
+    }
   });
 
   testWidgets('DS Bot 徽标实时汇总未读，零隐藏，超过 99 封顶', (tester) async {

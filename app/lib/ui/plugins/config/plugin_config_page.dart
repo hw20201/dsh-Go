@@ -3,7 +3,7 @@
 // fields take effect as they change; the others wait for 保存, which reloads
 // the plugin with progress, and a failed reload can be retried, put back or
 // dropped. Long forms fold their groups and their plumbing (「高级」) and get
-// a search; a plugin that ships its own web page keeps a way there.
+// a search.
 
 import 'dart:async';
 
@@ -13,7 +13,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/l10n.dart';
-import '../../../plugins/seams/seams.dart' show Slots, seatInventoryProvider;
 import '../../../state/engine_settings_state.dart';
 import '../../../state/plugin_config/plugin_config_state.dart';
 import '../../../state/plugins_state.dart';
@@ -33,9 +32,6 @@ import '../../settings/settings_widgets.dart' show SettingsSection;
 import '../../shell/page_frame.dart';
 import '../../theme/app_icons.dart';
 import '../../theme/theme.dart';
-import '../../web/dsh_web_launcher.dart' show DshWebOpenScope;
-import '../../web/web_target.dart';
-import '../seats/seat_links.dart' show seatWebOpenerProvider;
 import 'plugin_config_entries.dart' show pluginConfigNamedByBundle, pluginConfigTitle, retryPluginList;
 import 'plugin_config_layout.dart';
 import 'plugin_config_save_bar.dart';
@@ -79,14 +75,6 @@ const pluginConfigFoldFrom = 12;
 /// The bundle that brings entry [ns], if listed.
 PluginBundle? pluginConfigBundleOf(List<PluginBundle>? bundles, String ns) =>
     bundles?.where((b) => b.rows.any((r) => r.rowId == ns)).firstOrNull;
-
-/// Where [ns]'s own page is in DSH Web: its bundle's card on the Plugins
-/// page (titles in every language, then the package name).
-DshWebTarget pluginConfigWebTarget(String ns, {required String title, List<PluginBundle>? bundles}) {
-  final bundle = pluginConfigBundleOf(bundles, ns);
-  if (bundle == null) return DshWebTarget(pluginItem: [title, ns]);
-  return DshWebTarget(pluginItem: [...?bundle.meta?.title?.all, bundle.name]);
-}
 
 /// Which choice rows of [layout] draw as capsules now (an unset optional
 /// choice is a picker row instead), as the cards' shared capsule layout
@@ -137,9 +125,6 @@ class _PageFrame {
       state.writable,
       state.local,
       state.hostLabel,
-      // 「在网页版设置」 is shut while a save or a live write is on its way.
-      state.isApplying(ns),
-      state.pending[ns]?.isNotEmpty ?? false,
       if (form != null && settings != null) ...[
         settings.canWrite(ns),
         settings.isLocked(ns),
@@ -240,71 +225,6 @@ class _PluginConfigPageState extends ConsumerState<PluginConfigPage> {
       ('failed', _) => FeatureMessage(icon: AppIcons.error, title: l10n.pluginConfigNotStarted),
       _ => FeatureMessage(icon: AppIcons.unsupported, title: l10n.pluginConfigUnsupported),
     };
-  }
-
-  /// The plugin ships a settings page of its own in DSH Web (it said so, or
-  /// the web client reported it in a config slot).
-  bool _hasWebPage(PluginConfigForm form, List<PluginBundle>? bundles) {
-    if (form.prefersOwnPage) return true;
-    final owner = pluginConfigBundleOf(bundles, ns);
-    if (owner == null) return false;
-    final occupancy = ref.watch(seatInventoryProvider)?.occupancy;
-    if (occupancy == null) return false;
-    return [
-      ...?occupancy[Slots.bundleConfig],
-      ...?occupancy[Slots.rowConfig],
-      ...?occupancy[Slots.settingsSection],
-    ].any((o) => o.package == owner.name && (o.slot != Slots.rowConfig || o.cell.endsWith('#$ns')));
-  }
-
-  /// A save is reloading the plugin, or a live write is on its way.
-  bool _busy(PluginConfigState? state) =>
-      state != null && (state.isApplying(ns) || (state.pending[ns]?.isNotEmpty ?? false));
-
-  /// Off to DSH Web, which edits the same configuration through its own
-  /// page. Not while [_busy]: it would land on a plugin in the middle of its
-  /// reload. Held edits go first, when the person says so: kept, a later 保存
-  /// would write them over what was set there. A row of the form that names
-  /// only this entry ([target], 「在网页版编辑此项」) lands on the plugin's own
-  /// card too.
-  Future<void> _openWeb(String title, List<PluginBundle>? bundles, [DshWebTarget? target]) async {
-    final state = ref.read(pluginConfigProvider).value;
-    if (_busy(state)) {
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text(context.l10n.pluginConfigSaving)));
-      return;
-    }
-    if (state != null && state.hasDraft(ns)) {
-      if (!await _confirmDiscard() || !mounted) return;
-      _controller.discard(ns);
-    }
-    final own = target == null || (target.pluginItem.length == 1 && target.pluginItem.single == ns);
-    ref.read(seatWebOpenerProvider)(
-      context,
-      ref,
-      own ? pluginConfigWebTarget(ns, title: title, bundles: bundles) : target,
-    );
-  }
-
-  /// 「放弃修改？」, as when leaving the page with held edits.
-  Future<bool> _confirmDiscard() async {
-    final l10n = context.l10n;
-    final colors = DshColors.of(context);
-    final ok = await showAppDialog<bool>(
-      context: context,
-      builder: (dialog) => AlertDialog(
-        title: Text(l10n.botsDiscardTitle),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(dialog, false), child: Text(l10n.botsKeepEditing)),
-          FilledButton(
-            key: const ValueKey('plugin-config-web-discard'),
-            style: FilledButton.styleFrom(backgroundColor: colors.danger, foregroundColor: colors.onDanger),
-            onPressed: () => Navigator.pop(dialog, true),
-            child: Text(l10n.botsDiscard),
-          ),
-        ],
-      ),
-    );
-    return ok ?? false;
   }
 
   Future<void> _resetAll() async {
@@ -448,22 +368,8 @@ class _PluginConfigPageState extends ConsumerState<PluginConfigPage> {
     final copy = namespaceCopy[ns] ?? const <String, FieldCopy>{};
     final layout = cachedPluginConfigLayout(form, copy: copy, query: _query);
     final searching = _query.trim().isNotEmpty;
-    final web = _hasWebPage(form, bundles);
     // What the Host keeps as the person's own (held edits are 放弃's).
     final userSet = form.view.user?.isNotEmpty ?? false;
-
-    Widget webCard() => SettingsSection(
-      children: [
-        EngineFieldRow(
-          key: const ValueKey('plugin-config-web'),
-          title: l10n.pluginConfigOpenWeb,
-          subtitle: l10n.pluginConfigOpenWebHint,
-          opensExternally: true,
-          enabled: !_busy(state),
-          onTap: () => unawaited(_openWeb(title, bundles)),
-        ),
-      ],
-    );
 
     // A long form folds its titled groups (the untitled top stays open),
     // unless its schema folds groups of its own.
@@ -508,14 +414,11 @@ class _PluginConfigPageState extends ConsumerState<PluginConfigPage> {
               }),
             ),
           ),
-        if (web && form.prefersOwnPage && !searching) webCard(),
         if (searching && layout.sections.isEmpty)
           FeatureMessage(icon: AppIcons.search, title: l10n.pluginConfigNoMatch)
         else
           ...groups,
-        if (layout.isEmpty && !searching && !web)
-          FeatureMessage(icon: AppIcons.configure, title: l10n.pluginConfigNone),
-        if (web && !form.prefersOwnPage && !searching) webCard(),
+        if (layout.isEmpty && !searching) FeatureMessage(icon: AppIcons.configure, title: l10n.pluginConfigNone),
         if (userSet && !searching && settings.canWrite(ns))
           SettingsSection(
             children: [
@@ -538,8 +441,7 @@ class _PluginConfigPageState extends ConsumerState<PluginConfigPage> {
         isDirty: () => _dirty.value,
         child: Stack(
           children: [
-            // The form's own ways to DSH Web (「在网页版编辑此项」) go the page's way.
-            DshWebOpenScope(onOpen: (target) => unawaited(_openWeb(title, bundles, target)), child: page),
+            page,
             _SaveBarSlot(ns: ns, controller: _controller),
           ],
         ),

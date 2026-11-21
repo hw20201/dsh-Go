@@ -1,6 +1,4 @@
-// The "open in DSH Web" end of the plugin seats (docs/design/plugin-seams.md
-// §2): where an occupant lands in DSH Web, what it is called, and the entry a
-// seat draws for it when it can't be a native form or an island in place.
+// Native/island plugin seat entries and explicit unavailable placeholders.
 
 import 'package:dsh_client/dsh_client.dart' show PluginBundle;
 import 'package:flutter/material.dart';
@@ -14,16 +12,7 @@ import '../../common/list_page_row.dart';
 import '../../engine_settings/engine_settings_page.dart' show namespaceTitle;
 import '../../engine_settings/schema_form.dart' show SchemaUnsupportedField;
 import '../../theme/app_icons.dart';
-import '../../web/dsh_web_launcher.dart';
-import '../../web/web_target.dart';
 import 'plugin_seat_page.dart';
-
-/// Opens DSH Web on a target (in 网页模式 the web home itself goes there);
-/// tests swap it for a recorder.
-final seatWebOpenerProvider = Provider<void Function(BuildContext context, WidgetRef ref, DshWebTarget target)>(
-  (ref) =>
-      (context, ref, target) => openDshWeb(context, ref, target: target),
-);
 
 /// The installed bundle named [package], if listed.
 PluginBundle? seatBundleOf(List<PluginBundle>? bundles, String package) =>
@@ -68,47 +57,17 @@ String seatConfigTitle(SlotOccupant o, {PluginBundle? bundle}) {
   return bundle?.rows.where((r) => r.rowId == row).firstOrNull?.meta?.title?.resolve() ?? appL10n.commonSettings;
 }
 
-/// Where [o] lands in DSH Web. The open bridge (`assets/web/dsh_web_open.js`)
-/// has no ids for a third-party settings section, panel or tab, so those land
-/// one step short: the settings dialog, the sidebar with its panel list, the
-/// conversation.
-DshWebTarget seatWebTarget(SlotOccupant o, {String? sessionId, PluginBundle? bundle}) {
-  switch (o.slot) {
-    case Slots.settingsSection:
-      return DshWebTarget(
-        settings: DshWebSettings.values.where((s) => s.key == o.cell).firstOrNull ?? DshWebSettings.general,
-      );
-    case Slots.generalItem:
-      return const DshWebTarget(settings: DshWebSettings.general);
-    case Slots.settingsPluginsTab:
-      return const DshWebTarget(settings: DshWebSettings.plugins);
-    case Slots.sidebarFooter:
-      return const DshWebTarget(sidebar: true);
-    case Slots.bundleConfig || Slots.rowConfig || Slots.pluginDetailSection:
-      // The plugin's card on the Plugins page, by any of its names.
-      return DshWebTarget(pluginItem: [...?bundle?.meta?.title?.all, o.package]);
-    case Slots.main || Slots.panelList:
-      final panel = DshWebPanel.values.where((p) => p.key == o.cell).firstOrNull;
-      return panel == null ? const DshWebTarget(sidebar: true) : DshWebTarget(panel: panel);
-    case Slots.cordisView:
-      return DshWebTarget(sessionId: sessionId, panel: DshWebPanel.cordis);
-  }
-  return DshWebTarget(sessionId: sessionId);
-}
-
 /// How a row leads into an occupant.
 @immutable
 class SeatRowEntry {
-  const SeatRowEntry({required this.web, required this.open});
+  const SeatRowEntry({this.open});
 
-  /// It leaves for DSH Web (the row says 「网页版」).
-  final bool web;
-  final void Function(BuildContext context) open;
+  final void Function(BuildContext context)? open;
 }
 
 /// A row's way into [item] (from a [SeatPlacement.row] seat): the occupant's
-/// own page when it can be a native form or an island at page size, DSH Web
-/// otherwise. Call from a build: it watches the page's plan.
+/// own page when it can be a native form or an island at page size.
+/// Otherwise it is unavailable. Call from a build: it watches the page's plan.
 SeatRowEntry seatRowEntry(WidgetRef ref, SeatContext seat, SeatItem item, {required String title}) {
   final o = item.occupant;
   final page = SeatRequest(
@@ -124,21 +83,13 @@ SeatRowEntry seatRowEntry(WidgetRef ref, SeatContext seat, SeatItem item, {requi
       .any((i) => i.mode == SeatMode.island || i.mode == SeatMode.native);
   if (paged) {
     return SeatRowEntry(
-      web: false,
       open: (context) => Navigator.of(context).push(PluginSeatPage.route(title: title, request: page)),
     );
   }
-  final bundle = seatBundleOf(ref.watch(installedPluginsProvider.select((s) => s.value)), o.package);
-  final target = seatWebTarget(o, sessionId: seat.sessionId, bundle: bundle);
-  return SeatRowEntry(web: true, open: (context) => ref.read(seatWebOpenerProvider)(context, ref, target));
+  return const SeatRowEntry();
 }
 
-/// The seats' "open in DSH Web" entry (`SeatRenderers.webLink`).
-///
-/// - In a list ([SeatPlacement.row], [SeatPlacement.panel]): a row named for
-///   the occupant, 「网页版」 at its end. When an island fits at page size the
-///   row opens that page instead, and says nothing about the web.
-/// - Filling a page: the occupant's name over 「在网页版打开」.
+/// Placeholder for an unsupported seat; keeps native/island page routes.
 class SeatWebLink extends ConsumerWidget {
   const SeatWebLink({super.key, required this.seat, required this.item});
 
@@ -157,18 +108,12 @@ class SeatWebLink extends ConsumerWidget {
     }
     final name = seatEntryTitle(o, inventory: ref.watch(seatInventoryProvider), bundle: bundle);
     if (seat.placement == SeatPlacement.page || seat.placement == SeatPlacement.overlay) {
-      final target = seatWebTarget(o, sessionId: seat.sessionId, bundle: bundle);
       // Like the pages' empty states: centred, a little high.
       return Align(
         alignment: const Alignment(0, -0.5),
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(vertical: 24),
-          child: EmptyView(
-            icon: AppIcons.webApp,
-            title: name,
-            actionLabel: l10n.commonOpenInWeb,
-            onAction: () => ref.read(seatWebOpenerProvider)(context, ref, target),
-          ),
+          child: EmptyView(icon: AppIcons.unsupported, title: name, message: l10n.pluginsUnavailable),
         ),
       );
     }
@@ -177,9 +122,9 @@ class SeatWebLink extends ConsumerWidget {
     return ListPageRow(
       icon: config ? AppIcons.configure : AppIcons.plugin,
       title: config ? seatConfigTitle(o, bundle: bundle) : name,
-      meta: entry.web ? l10n.commonWeb : null,
-      chevron: true,
-      onTap: () => entry.open(context),
+      meta: entry.open == null ? l10n.pluginsUnavailable : null,
+      chevron: entry.open != null,
+      onTap: entry.open == null ? null : () => entry.open!(context),
     );
   }
 }

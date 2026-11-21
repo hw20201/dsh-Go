@@ -15,8 +15,6 @@ import '../../pets/pet_signals.dart';
 import '../../pets/pet_state.dart';
 import '../../state/android_features.dart';
 import '../../state/compose_inbox.dart';
-import '../../state/ui_mode_state.dart';
-import '../../state/web_target.dart';
 import '../../ui_config/ui_skill.dart' show petThemeSkillName;
 import '../common/expand_reveal.dart';
 import '../settings/settings_widgets.dart';
@@ -144,12 +142,7 @@ class PetSettingsPage extends ConsumerWidget {
     final container = ProviderScope.containerOf(context, listen: false);
     Navigator.of(context, rootNavigator: true).popUntil((route) => route.isFirst);
     final request = ComposeRequest(text: '/$petThemeSkillName ');
-    if (container.read(uiModeProvider).web) {
-      // The web home has no native composer: the page opens a new chat with it.
-      container.read(webOpenProvider.notifier).request(const DshWebTarget(newSession: true), compose: request);
-    } else {
-      container.read(composeInboxProvider.notifier).push(request);
-    }
+    container.read(composeInboxProvider.notifier).push(request);
   }
 
   /// Who made the chosen pet, as its pack says (docs/design/pets.md §9), and

@@ -8,7 +8,6 @@
 import 'package:dsh_app/ui/chat/render/mermaid_preview.dart';
 import 'package:dsh_app/ui/plugins/islands/island_platform.dart';
 import 'package:dsh_app/ui/shell/page_frame.dart';
-import 'package:dsh_app/ui/web/web_target.dart';
 import 'package:dsh_app/ui/web/web_view_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -28,11 +27,11 @@ Future<void> _settle(WidgetTester tester) async {
   await tester.pump();
 }
 
-Future<void> _pumpPage(WidgetTester tester, {DshWebLink? link, Brightness brightness = Brightness.light}) async {
+Future<void> _pumpPage(WidgetTester tester, {Brightness brightness = Brightness.light}) async {
   usePhoneView(tester);
   await tester.pumpWidget(
     testApp(
-      WebViewPage(url: _url, title: '网页版', dshWeb: true, link: link),
+      WebViewPage(url: _url, title: '网页版'),
       brightness: brightness,
     ),
   );
@@ -90,27 +89,6 @@ void main() {
     expect(first.loads, hasLength(1));
   });
 
-  testWidgets('网页模式: the owner\'s link follows the new WebView', (tester) async {
-    final link = DshWebLink();
-    await _pumpPage(tester, link: link);
-    _web.controllers.single.finish();
-    _islands.gone();
-    await tester.pump();
-    await tester.pump();
-    // Asked while the page is closed: it waits for the reopened page.
-    await link.open(const DshWebTarget(sessionId: 's2'));
-    await tester.tap(find.text('重新打开'));
-    await _settle(tester);
-    final page = _web.controllers.last;
-    page.finish();
-    for (var i = 0; i < 40 && !page.scripts.any((s) => s.contains('"session":"s2"')); i++) {
-      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
-      await tester.pump();
-    }
-    expect(page.scripts.where((s) => s.contains('"session":"s2"')), isNotEmpty);
-    expect(_web.controllers.first.scripts.where((s) => s.contains('"session":"s2"')), isEmpty);
-  });
-
   testWidgets('an old main-frame error cannot cover the reopened page', (tester) async {
     await _pumpPage(tester);
     final first = _web.controllers.single;
@@ -144,32 +122,6 @@ void main() {
     await tester.pump();
     expect(find.text('页面没有打开'), findsNothing);
     expect(find.byType(LinearProgressIndicator), findsOneWidget);
-  });
-
-  testWidgets('an old finish cannot spend a queued target on the loading replacement', (tester) async {
-    final link = DshWebLink();
-    await _pumpPage(tester, link: link);
-    final first = _web.controllers.single;
-    _islands.gone();
-    await tester.pump();
-    await tester.pump();
-    await link.open(const DshWebTarget(sessionId: 'pending-session'));
-    await tester.tap(find.text('重新打开'));
-    await _settle(tester);
-    final second = _web.controllers.last;
-
-    first.finish();
-    await _settle(tester);
-    expect(find.byType(LinearProgressIndicator), findsOneWidget);
-    expect(second.scripts, isEmpty);
-
-    second.finish();
-    for (var i = 0; i < 40 && !second.scripts.any((s) => s.contains('"session":"pending-session"')); i++) {
-      await _settle(tester);
-    }
-    expect(find.byType(LinearProgressIndicator), findsNothing);
-    expect(second.scripts.where((s) => s.contains('"session":"pending-session"')), hasLength(1));
-    expect(first.scripts, isEmpty);
   });
 
   testWidgets('an old progress event cannot replace the new load progress', (tester) async {
@@ -229,7 +181,7 @@ void main() {
             child: TextButton(
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) => WebViewPage(url: _url, title: '网页版', dshWeb: true),
+                  builder: (_) => WebViewPage(url: _url, title: '网页版'),
                 ),
               ),
               child: const Text('打开'),
@@ -257,7 +209,7 @@ void main() {
       ValueListenableBuilder<ThemeMode>(
         valueListenable: mode,
         builder: (_, m, _) => testApp(
-          WebViewPage(url: _url, title: '网页版', dshWeb: true),
+          WebViewPage(url: _url, title: '网页版'),
           brightness: m == ThemeMode.dark ? Brightness.dark : Brightness.light,
         ),
       ),

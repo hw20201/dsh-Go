@@ -66,7 +66,6 @@ Future<void> _openProbe(
 
 void main() {
   setUpAll(chat.loadTestFonts);
-  setUp(openedWeb.clear);
 
   group('places', () {
     test(
@@ -143,7 +142,7 @@ void main() {
   });
 
   group('section', () {
-    testWidgets('rows open DSH Web where the place is', (tester) async {
+    testWidgets('unsupported places are informational, not web launchers', (tester) async {
       await _openProbe(tester, seatInventory(occupancy: _spread));
       final section = find.byKey(const ValueKey('plugin-web-places'));
       await tester.scrollUntilVisible(section, 200, scrollable: find.byType(Scrollable).last);
@@ -152,8 +151,7 @@ void main() {
       for (final place in ['besideComposer', 'messages', 'overlay']) {
         expect(find.byKey(ValueKey('web-place-$place')), findsOneWidget, reason: place);
       }
-      await tester.tap(find.byKey(const ValueKey('web-place-overlay')));
-      expect(openedWeb.single.isHome, isTrue);
+      expect(find.text('暂不可用'), findsWidgets);
     });
 
     testWidgets('a plugin whose web part is all seated has no section', (tester) async {

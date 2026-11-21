@@ -9,7 +9,6 @@ import 'package:dsh_app/state/hosts_state.dart';
 import 'package:dsh_app/state/sessions_state.dart';
 import 'package:dsh_app/ui/cordis/cordis_page.dart';
 import 'package:dsh_app/ui/cordis/cordis_plugin_sheet.dart';
-import 'package:dsh_app/ui/web/web_target.dart';
 import 'package:dsh_client/dsh_client.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -142,12 +141,8 @@ void main() {
   });
 
   group('sheet', () {
-    testWidgets('facts, and 在网页版打开 lands on the panel in its conversation', (tester) async {
-      final opened = <DshWebTarget>[];
-      await _pump(tester, [
-        ...cordisOverrides(),
-        cordisWebOpenerProvider.overrideWithValue((context, ref, target) => opened.add(target)),
-      ]);
+    testWidgets('facts and native recovery actions without a web launcher', (tester) async {
+      await _pump(tester, [...cordisOverrides()]);
       await _openSheet(tester, '桌面时钟');
       final sheet = find.byType(CordisPluginSheet);
       Finder inSheet(String text) => find.descendant(of: sheet, matching: find.text(text));
@@ -157,15 +152,13 @@ void main() {
       expect(inSheet('2 个'), findsOneWidget);
       expect(inSheet('后台和界面'), findsOneWidget);
 
-      await tester.tap(inSheet('在网页版打开'));
-      await tester.pump();
-      expect(opened, [const DshWebTarget(sessionId: 's1', panel: DshWebPanel.cordis)]);
+      expect(inSheet('在网页版打开'), findsNothing);
     });
 
     testWidgets('a stopped plugin cannot be stopped again', (tester) async {
       await _pump(tester, cordisOverrides());
       await _openSheet(tester, '天气卡片');
-      final stop = tester.widget<OutlinedButton>(find.widgetWithText(OutlinedButton, '停止'));
+      final stop = tester.widget<FilledButton>(find.widgetWithText(FilledButton, '停止'));
       expect(stop.onPressed, isNull);
       final remove = tester.widget<OutlinedButton>(find.widgetWithText(OutlinedButton, '移除'));
       expect(remove.onPressed, isNotNull);
@@ -192,7 +185,7 @@ void main() {
         {...sampleCordisRows.first, 'activeRun': null, 'latestRun': attempt('pkg-2', 'stopped')},
         ...sampleCordisRows.skip(1),
       ];
-      await tester.tap(find.widgetWithText(OutlinedButton, '停止'));
+      await tester.tap(find.widgetWithText(FilledButton, '停止'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       expect(host.carrier.argsOf('dynamicCordisRunner/stopFromPanel'), [
@@ -229,7 +222,7 @@ void main() {
           throw const DshRemoteException('session/not-found', 'session "s1" not found');
       await _pump(tester, host.overrides);
       await _openSheet(tester, '桌面时钟');
-      await tester.tap(find.widgetWithText(OutlinedButton, '停止'));
+      await tester.tap(find.widgetWithText(FilledButton, '停止'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       expect(find.text('没能停止：这个对话已经不在了'), findsOneWidget);

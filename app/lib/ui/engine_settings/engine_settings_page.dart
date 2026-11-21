@@ -66,9 +66,6 @@ const curatedNamespaces = {
   'web',
   'web-search-deepseek',
   'web-deepseek-api',
-  'ui-settings',
-  'ui-chat',
-  'ui-conversation',
   'session-log-deepseek',
   // 设置 › 图像与视频.
   'dsh-media',
@@ -85,6 +82,9 @@ const internalNamespaces = {
   'agent-default-model',
   'locale',
   'ui-theme',
+  'ui-settings',
+  'ui-chat',
+  'ui-conversation',
   'ui-settings-account',
   'ui-settings-general',
   'llm-pi-ai',
@@ -108,7 +108,7 @@ Widget settingsPageFor(String ns, {String? title}) => switch (ns) {
   'agent-loop' => const AgentLoopSettingsPage(),
   'bash-sandbox' || 'pwsh-sandbox' => const ShellSettingsPage(),
   'web' || 'web-search-deepseek' || 'web-deepseek-api' => const WebSearchSettingsPage(),
-  'ui-settings' || 'ui-chat' || 'ui-conversation' || 'session-log-deepseek' => const GeneralSettingsPage(),
+  'session-log-deepseek' => const GeneralSettingsPage(),
   'dsh-media' || 'media' => const MediaSettingsPage(),
   _ => PluginConfigPage(ns: ns, title: title),
 };

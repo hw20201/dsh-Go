@@ -14,7 +14,6 @@ import 'package:dsh_app/ui/plugins/islands/islands.dart';
 import 'package:dsh_app/ui/plugins/seats/plugin_seat_page.dart';
 import 'package:dsh_app/ui/plugins/seats/session_plugins_tab.dart';
 import 'package:dsh_app/ui/session/session_detail_page.dart';
-import 'package:dsh_app/ui/web/web_target.dart';
 import 'package:dsh_client/dsh_client.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -62,8 +61,6 @@ Future<void> _pumpDetail(WidgetTester tester, {required List<Override> seats}) a
 }
 
 void main() {
-  setUp(openedWeb.clear);
-
   group('plan', () {
     test('a view is a page island in its conversation; the official views stay DSH Web\'s', () {
       final plan = _plan(seatOverrides(inventory: seatInventory(occupancy: _views)));
@@ -190,7 +187,6 @@ void main() {
       expect(find.byType(FakeIsland), findsNothing, reason: 'the list waits for the user to choose a page');
 
       await tester.tap(find.text('桌宠面板'));
-      expect(openedWeb.single, const DshWebTarget(sidebar: true));
       await tester.tap(find.text('探针面板'));
       await chat.pumpFrames(tester, 8);
       var page = tester.widget<PluginSeatPage>(find.byType(PluginSeatPage));
@@ -224,7 +220,6 @@ void main() {
       expect(find.text('桌宠面板'), findsOneWidget);
       await tester.tap(find.text('记忆'));
       await tester.tap(find.text('探针面板'));
-      expect(openedWeb, [const DshWebTarget(sessionId: 's1'), const DshWebTarget(sidebar: true)]);
       expect(tester.takeException(), isNull);
     });
 
@@ -251,8 +246,8 @@ void main() {
       );
       expect(find.byType(FakeIsland), findsNothing);
       expect(find.text('记忆'), findsOneWidget);
-      await tester.tap(find.text('在网页版打开'));
-      expect(openedWeb.single, const DshWebTarget(sessionId: 's1'));
+      expect(find.text('在网页版打开'), findsNothing);
+      expect(find.text('暂不可用'), findsWidgets);
       expect(tester.takeException(), isNull);
     });
 

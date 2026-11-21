@@ -24,7 +24,9 @@ class _Save {
 }
 
 Future<void> _until(WidgetTester tester, bool Function() done, String reason) async {
-  for (var i = 0; i < 300; i++) {
+  // 600 rounds: the save goes through real loopback HTTP and files, which
+  // can take over 3 s when the whole directory runs in parallel.
+  for (var i = 0; i < 600; i++) {
     if (done()) return;
     await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 5)));
     await tester.pump(const Duration(milliseconds: 5));

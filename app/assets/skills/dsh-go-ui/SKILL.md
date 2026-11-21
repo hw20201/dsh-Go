@@ -92,7 +92,7 @@ dsh-go App 会读 `$DSH_HOME/dsh-go/ui.json`（`DSH_HOME` 默认 `~/.dsh`），�
 | `theme.accent` | 自定义强调色 `#RRGGBB`（App 会自动调到对比度达标）；和 `accentPreset` 二选一 |
 | `pet` | `id`、`position`（`top-left` / `top-right` / `bottom-left` / `bottom-right`）、`quiet`（布尔）。当前只校验，不改变界面 |
 | `shortcuts` | 平板外接键盘快捷键，≤ 20 条：`keys` 如 `ctrl+k`、`ctrl+shift+n`、`alt+1`、`f5`（必须带 ctrl 或 alt，F 键除外；不能用 meta/cmd/win；`ctrl+a/c/v/x/y/z`、`ctrl+shift+v/z`、`alt+f4` 被占用）+ `action` |
-| `plugins.seats` | 插件在原生界面里怎么出现：`{ "<slot>": { "<npm 包名>": "native" \| "island" \| "web" \| "hidden" } }`（原生画 / 内嵌网页 / 在网页版打开 / 隐藏）。slot 名见 `schema.json` 的 `x-dsh-go.slots.known`；`unseatable` 里的是 App 自己的界面，不放插件 |
+| `plugins.seats` | 插件在原生界面里怎么出现：`{ "<slot>": { "<npm 包名>": "native" \| "island" \| "hidden" } }`（原生画 / 内嵌插件 / 隐藏）。slot 名见 `schema.json` 的 `x-dsh-go.slots.known`；`unseatable` 里的是 App 自己的界面，不放插件 |
 
 图标（`icon`）：bolt star sparkle heart flag bookmark pin bell clock alarm calendar todo note document folder search code terminal globe chart lightbulb book puzzle robot chat mail translate image camera mic link summary wrench bug travel school home play refresh archive team wallet palette
 
@@ -103,7 +103,7 @@ dsh-go App 会读 `$DSH_HOME/dsh-go/ui.json`（`DSH_HOME` 默认 `~/.dsh`），�
 | `type` | 字段 | 用户点了之后 |
 |---|---|---|
 | `send` | `text`（≤ 2000 字） | 把文字放进输入框，用户自己点发送；绝不自动发送 |
-| `open` | `page` | 打开 App 页面：`new-chat`、`settings`、`search`、`files`、`terminal`、`jobs`、`skills`、`schedules`、`models`、`plugins`、`cordis`、`web`、`session-detail`、`workspaces`、`account`、`remote`、`phone`、`notifications`、`diagnostics` 等，全部见 `schema.json` 的 `$defs.page` |
+| `open` | `page` | 打开 App 页面：`new-chat`、`settings`、`search`、`files`、`terminal`、`jobs`、`skills`、`schedules`、`models`、`plugins`、`cordis`、`session-detail`、`workspaces`、`account`、`remote`、`phone`、`notifications`、`diagnostics` 等，全部见 `schema.json` 的 `$defs.page` |
 | `command` | `name`（不带 `/`）、`args`（可选，单行） | 在当前对话里执行 `/name args` |
 | `link` | `url`（只收 `https://`） | 弹确认后用浏览器打开 |
 

@@ -4,10 +4,7 @@ dsh-Go connects to DSH on your computer or server. Chats, workspaces and plugins
 
 ## First launch
 
-The first time you open the app, choose how to use it:
-
-- **Remote host**: connects to DSH on your computer or server without installing an engine on the phone.
-- **Chat with characters**: opens the tavern now and on later launches. Bringing chats over from DeepSeek starts here too.
+The first time you open the app, connect to DSH on your computer or server without installing an engine on the phone.
 
 ## Switch hosts
 
@@ -61,4 +58,4 @@ The HarmonyOS version has no WebRTC and uses the end-to-end encrypted Relay, not
 
 **Compact history** is off by default. Supporting DSH Remote Hosts summarize historical tool arguments and output to reduce history transfer; message text, live replies, approvals and original Host records stay unchanged. Switch to another remote host and back, or restart the app, to apply. The current client and its automatic reconnects retain their original mode to avoid mixing cached history. After turning it off, select the host again and reopen the chat to load full history. Older Hosts continue sending full history; SSH is unaffected.
 
-DSH Remote connects to one host at a time; switching disconnects the previous one. Over DSH Remote: you can send images only, DSH Web doesn't open in the app, plugins can only be turned on or off, and DS Bot and chat log export aren't available.
+DSH Remote connects to one host at a time; switching disconnects the previous one. Over DSH Remote: you can send images only, plugins can only be turned on or off, and DS Bot and chat log export aren't available.

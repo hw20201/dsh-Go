@@ -8,7 +8,6 @@ import 'package:dsh_app/pets/pet_prefs.dart';
 import 'package:dsh_app/pets/pet_sheets.dart';
 import 'package:dsh_app/pets/pet_signals.dart';
 import 'package:dsh_app/pets/pet_state.dart';
-import 'package:dsh_app/state/ui_mode_state.dart';
 import 'package:dsh_app/ui/pets/pet_perch.dart';
 import 'package:dsh_app/ui/pets/pet_sprite.dart';
 import 'package:dsh_app/ui/pets/pet_stage.dart';
@@ -123,11 +122,6 @@ class _Prefs extends PetPrefsController {
   PetPrefs build() => const PetPrefs(packId: 'phase-test', loaded: true);
 }
 
-class _Mode extends UiModeController {
-  @override
-  UiModeState build() => const UiModeState(loaded: true);
-}
-
 typedef _Controls = ({bool cover, bool reduced});
 
 Future<void> _mountStage(WidgetTester tester, ValueNotifier<_Controls> controls) async {
@@ -137,7 +131,6 @@ Future<void> _mountStage(WidgetTester tester, ValueNotifier<_Controls> controls)
       overrides: [
         currentPetPackProvider.overrideWithValue(deepy),
         petPrefsProvider.overrideWith(_Prefs.new),
-        uiModeProvider.overrideWith(_Mode.new),
         petOverlayBridgeProvider.overrideWith((ref) {}),
         petScopedStateProvider.overrideWith((ref, scope) => const PetState(state: PetStateName.sleeping)),
         petClockProvider.overrideWithValue(() => DateTime(2026)),

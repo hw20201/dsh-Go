@@ -30,7 +30,6 @@ import '../../pets/pet_state.dart';
 import '../../state/chat_state.dart';
 import '../../state/hosts_state.dart';
 import '../../state/sessions_state.dart';
-import '../../state/ui_mode_state.dart';
 import '../chat/widgets/approval_card.dart';
 import '../chat/widgets/question_card.dart';
 import '../common/discard_guard.dart';
@@ -565,13 +564,7 @@ class PetLayerState extends ConsumerState<PetLayer> with TickerProviderStateMixi
 
   bool get _visible {
     final prefs = ref.read(petPrefsProvider);
-    return _pack != null &&
-        prefs.loaded &&
-        prefs.enabled &&
-        !prefs.hiddenAt(_now) &&
-        !ref.read(uiModeProvider).web &&
-        _spot != null &&
-        !_covered;
+    return _pack != null && prefs.loaded && prefs.enabled && !prefs.hiddenAt(_now) && _spot != null && !_covered;
   }
 
   PetScope get _scope => _spot?.kind == PerchKind.strip ? PetScope.focus : PetScope.global;
@@ -856,7 +849,6 @@ class PetLayerState extends ConsumerState<PetLayer> with TickerProviderStateMixi
     final pack = ref.watch(currentPetPackProvider);
     final prefs = ref.watch(petPrefsProvider);
     final pet = ref.watch(petScopedStateProvider(_scope));
-    ref.watch(uiModeProvider.select((m) => m.web));
     // A new state (or the pack just arrived): arm what goes with it.
     if (pet.state != _lastState || !identical(pack, _statePack)) {
       _lastState = pet.state;

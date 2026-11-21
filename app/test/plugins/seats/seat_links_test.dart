@@ -7,7 +7,6 @@ import 'package:dsh_app/state/hosts_state.dart';
 import 'package:dsh_app/ui/plugins/islands/island_gate.dart';
 import 'package:dsh_app/ui/plugins/seats/seat_island.dart';
 import 'package:dsh_app/ui/plugins/seats/seat_links.dart';
-import 'package:dsh_app/ui/web/web_target.dart';
 import 'package:dsh_client/dsh_client.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -15,58 +14,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'support.dart';
 
 void main() {
-  group('seatWebTarget', () {
-    test('settings: an official section by id, a third-party one opens the dialog', () {
-      expect(
-        seatWebTarget(occupant(Slots.settingsSection, probe, 'models')),
-        const DshWebTarget(settings: DshWebSettings.models),
-      );
-      expect(
-        seatWebTarget(occupant(Slots.settingsSection, probe, 'k4-probe')),
-        const DshWebTarget(settings: DshWebSettings.general),
-      );
-      expect(
-        seatWebTarget(occupant(Slots.generalItem, pet, 'x')),
-        const DshWebTarget(settings: DshWebSettings.general),
-      );
-    });
-
-    test('a plugin\'s config: its card on the Plugins page, by every name', () {
-      expect(seatWebTarget(occupant(Slots.bundleConfig, probe, probe), bundle: probeBundle).pluginItem, [
-        '岛屿探针',
-        'Island probe',
-        probe,
-      ]);
-      expect(seatWebTarget(occupant(Slots.rowConfig, pet, '$pet#$pet')).pluginItem, [pet]);
-    });
-
-    test('common page seams fall back to the corresponding web surface', () {
-      expect(seatWebTarget(occupant(Slots.sidebarFooter, probe, 'footer')), const DshWebTarget(sidebar: true));
-      expect(
-        seatWebTarget(occupant(Slots.settingsPluginsTab, probe, 'extra')),
-        const DshWebTarget(settings: DshWebSettings.plugins),
-      );
-      expect(seatWebTarget(occupant(Slots.pluginDetailSection, probe, 'details')).pluginItem, [probe]);
-    });
-
-    test('panels: an official one by id, a third-party one opens the sidebar', () {
-      expect(seatWebTarget(occupant(Slots.main, probe, 'schedules')), const DshWebTarget(panel: DshWebPanel.schedules));
-      expect(seatWebTarget(occupant(Slots.main, probe, 'k4-panel')), const DshWebTarget(sidebar: true));
-    });
-
-    test('conversation slots land on the conversation; Cordis on its panel there', () {
-      expect(
-        seatWebTarget(occupant(Slots.rightPaneTab, probe, 'k4-tab'), sessionId: 's1'),
-        const DshWebTarget(sessionId: 's1'),
-      );
-      expect(
-        seatWebTarget(occupant(Slots.cordisView, 'clock', 'clock'), sessionId: 's1'),
-        const DshWebTarget(sessionId: 's1', panel: DshWebPanel.cordis),
-      );
-      expect(seatWebTarget(occupant('some.root.slot', probe, 'x')), const DshWebTarget());
-    });
-  });
-
   group('names', () {
     final inventory = seatInventory(occupancy: fullOccupancy);
 

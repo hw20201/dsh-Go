@@ -6,40 +6,23 @@ import '../theme/app_icons.dart';
 import '../theme/theme.dart';
 import 'onboarding_scaffold.dart';
 
-/// Where DSH runs, or 酒馆 without it.
-enum RuntimeOption { remote, tavern }
-
-class RuntimeChoiceView extends StatefulWidget {
-  const RuntimeChoiceView({super.key, required this.onRemote, this.onTavern, this.leading});
+/// Connect the native app to a remote host.
+class RuntimeChoiceView extends StatelessWidget {
+  const RuntimeChoiceView({super.key, required this.onRemote, this.leading});
 
   final VoidCallback onRemote;
-
-  /// 和角色聊天 (first run only): 酒馆, with nothing installed. Null: no such
-  /// card, and the question stays where DSH runs.
-  final VoidCallback? onTavern;
-
-  /// Top-left key, as [OnboardingScaffold.leading].
   final Widget? leading;
-
-  @override
-  State<RuntimeChoiceView> createState() => _RuntimeChoiceViewState();
-}
-
-class _RuntimeChoiceViewState extends State<RuntimeChoiceView> {
-  RuntimeOption? _picked;
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final selected = _picked ?? RuntimeOption.remote;
-    final onTavern = widget.onTavern;
     return OnboardingScaffold(
-      leading: widget.leading,
+      leading: leading,
       children: [
         const Spacer(),
         OnboardingHeader(
           icon: AppIcons.remoteHost,
-          title: onTavern == null ? l10n.localEnvChooseTitle : l10n.localEnvChooseUseTitle,
+          title: l10n.localEnvChooseTitle,
           message: l10n.localEnvChooseMessage,
         ),
         const SizedBox(height: 28),
@@ -48,29 +31,12 @@ class _RuntimeChoiceViewState extends State<RuntimeChoiceView> {
           icon: AppIcons.computer,
           title: l10n.commonRemoteHost,
           detail: l10n.localEnvRemoteDetail,
-          selected: selected == RuntimeOption.remote,
-          onTap: () => setState(() => _picked = RuntimeOption.remote),
+          selected: true,
+          onTap: onRemote,
         ),
-        if (onTavern != null) ...[
-          const SizedBox(height: RuntimeOptionCard.gap),
-          RuntimeOptionCard(
-            key: const ValueKey('runtime-option-tavern'),
-            icon: AppIcons.tavern,
-            title: l10n.localEnvTavernTitle,
-            detail: l10n.localEnvTavernDetail,
-            selected: selected == RuntimeOption.tavern,
-            onTap: () => setState(() => _picked = RuntimeOption.tavern),
-          ),
-        ],
         const Spacer(flex: 2),
         const SizedBox(height: 24),
-        FilledButton(
-          onPressed: switch (selected) {
-            RuntimeOption.remote => widget.onRemote,
-            RuntimeOption.tavern => onTavern,
-          },
-          child: Text(l10n.commonContinue),
-        ),
+        FilledButton(onPressed: onRemote, child: Text(l10n.commonContinue)),
       ],
     );
   }

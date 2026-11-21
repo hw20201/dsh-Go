@@ -18,10 +18,8 @@ import 'package:dsh_app/ui/plugins/islands/islands.dart';
 import 'package:dsh_app/ui/plugins/native/chat_plugins_sheet.dart';
 import 'package:dsh_app/ui/plugins/native/composer_capsules.dart';
 import 'package:dsh_app/ui/plugins/native/native_composer_bar.dart';
-import 'package:dsh_app/ui/plugins/seats/seat_links.dart' show seatWebOpenerProvider;
 import 'package:dsh_app/ui/plugins/view/plugin_view.dart';
 import 'package:dsh_app/ui/theme/glass.dart';
-import 'package:dsh_app/ui/web/web_target.dart';
 import 'package:dsh_app/ui_config/ui_config.dart';
 import 'package:dsh_client/dsh_client.dart';
 import 'package:flutter/material.dart';
@@ -123,7 +121,6 @@ List<Override> _overrides(
   seatInventoryProvider.overrideWith((ref) => seats.seatInventory(occupancy: web, routeGuard: routeGuard)),
   islandBudgetProvider.overrideWithValue(budget),
   seatRenderersProvider.overrideWithValue(renderers ?? seats.testRenderers()),
-  seatWebOpenerProvider.overrideWithValue((context, ref, target) => seats.openedWeb.add(target)),
   seatOverridesProvider.overrideWithValue(seatOverrides),
 ];
 
@@ -176,7 +173,6 @@ void main() {
   setUpAll(loadTestFonts);
   setUp(() {
     SharedPreferences.setMockInitialValues({});
-    seats.openedWeb.clear();
   });
 
   group('content', () {
@@ -401,7 +397,7 @@ void main() {
       // The ways in sit under the island, DSH Web always last: a part that
       // opens something the island never shows still has a way in.
       expect(find.byKey(const ValueKey('chat-plugins-ways-in')), findsOneWidget);
-      expect(find.byKey(const ValueKey('chat-plugins-web-link')), findsOneWidget);
+      expect(find.byKey(const ValueKey('chat-plugins-web-link')), findsNothing);
     });
 
     testWidgets('an island that can\'t come up is one 在网页版打开 row into the conversation', (tester) async {
@@ -415,9 +411,9 @@ void main() {
       );
       await pumpFrames(tester);
       expect(find.byType(seats.FakeIsland), findsNothing);
-      expect(find.byKey(const ValueKey('chat-plugins-web-link')), findsOneWidget);
-      await tester.tap(find.text('在网页版打开'));
-      expect(seats.openedWeb.single, const DshWebTarget(sessionId: 's1'));
+      expect(find.byKey(const ValueKey('chat-plugins-web-link')), findsNothing);
+      expect(find.text('在网页版打开'), findsNothing);
+      expect(find.text('暂不可用'), findsWidgets);
       expect(tester.takeException(), isNull);
     });
 

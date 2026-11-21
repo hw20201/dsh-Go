@@ -1,6 +1,5 @@
 // One dynamic plugin (a row of the official Cordis panel): what it is, its
-// state, and what can be done from the phone — open its panel in DSH Web,
-// stop it, remove it. Running a version with an interface, and answering a
+// state, and native stop/remove actions. Running a version with an interface, and answering a
 // run request, happen in DSH Web: the official runner executes that code in
 // the page.
 
@@ -23,23 +22,10 @@ import '../plugins/seats/cordis_island_seat.dart';
 import '../safe_mode/recovery_actions.dart';
 import '../theme/app_icons.dart';
 import '../theme/theme.dart';
-import '../web/dsh_web_launcher.dart';
-import '../web/web_target.dart';
 import '../common/brief_notice.dart';
 
 Future<void> showCordisPluginSheet(BuildContext context, CordisPlugin plugin) =>
     showAppSheet<void>(context, isScrollControlled: true, builder: (_) => CordisPluginSheet(initial: plugin));
-
-/// Opens DSH Web on a target; tests swap it for a recorder. (The same shape
-/// as 全部功能's opener, kept here so this sheet doesn't pull in the catalog.)
-final cordisWebOpenerProvider = Provider<void Function(BuildContext context, WidgetRef ref, DshWebTarget target)>(
-  (ref) =>
-      (context, ref, target) => openDshWeb(context, ref, target: target),
-);
-
-/// Where 「在网页版打开」 lands: the owning conversation, with the Cordis
-/// panel open.
-DshWebTarget cordisWebTarget(CordisPlugin plugin) => DshWebTarget(sessionId: plugin.agentId, panel: DshWebPanel.cordis);
 
 /// 「后台和界面」: which halves the shown version has.
 String cordisMakeup(CordisPackage package) => switch ((package.hasHostHalf, package.hasClientHalf)) {
@@ -144,8 +130,6 @@ class _CordisPluginSheetState extends ConsumerState<CordisPluginSheet> {
     }
   }
 
-  void _open() => ref.read(cordisWebOpenerProvider)(context, ref, cordisWebTarget(_plugin));
-
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
@@ -206,13 +190,9 @@ class _CordisPluginSheetState extends ConsumerState<CordisPluginSheet> {
                   // The plugin's interactive region, when it can show here.
                   CordisIslandSeat(plugin: plugin),
                   RecoveryActions(
-                    primaryLabel: l10n.commonOpenInWeb,
-                    onPrimary: idle ? _open : null,
+                    primaryLabel: _busy == _Busy.stop ? l10n.catalogCordisStopping : l10n.commonStop,
+                    onPrimary: idle && plugin.running ? () => unawaited(_stop()) : null,
                     secondary: [
-                      (
-                        label: _busy == _Busy.stop ? l10n.catalogCordisStopping : l10n.commonStop,
-                        onPressed: idle && plugin.running ? () => unawaited(_stop()) : null,
-                      ),
                       (
                         label: _busy == _Busy.remove ? l10n.catalogCordisRemoving : l10n.catalogCordisRemove,
                         onPressed: idle ? () => unawaited(_remove()) : null,

@@ -9,7 +9,7 @@
 // island on its own (this phone's route guard, the bridge's occupancy, no
 // ui.json asking for the web) and the budget has room; it gets 8 s to show
 // (IslandTiming.sheetReady).
-// Anything else — and an island that gives up — is one 「在网页版打开」 row.
+// Unsupported page-only parts are listed as unavailable.
 //
 // Under the island every web plugin gets its ways into the app as rows: the
 // conversation tabs it registered (`sidebar.right.pane.tab`, its own page)
@@ -32,10 +32,9 @@ import '../../common/app_sheet.dart';
 import '../../common/list_page_row.dart';
 import '../../theme/app_icons.dart';
 import '../../theme/theme.dart';
-import '../../web/web_target.dart';
 import '../plugin_detail_sheet.dart' show showBundleSheet;
 import '../seats/plugin_seat_page.dart';
-import '../seats/seat_links.dart' show seatBundleOf, seatEntryTitle, seatWebOpenerProvider, seatWebTarget;
+import '../seats/seat_links.dart' show seatBundleOf, seatEntryTitle;
 import '../seats/session_plugins_tab.dart' show sessionPluginPlanProvider;
 import 'native_panel.dart';
 
@@ -302,39 +301,36 @@ class _WebPluginsState extends ConsumerState<_WebPlugins> {
       final o = item.occupant;
       final bundle = seatBundleOf(bundles, o.package);
       final title = seatEntryTitle(o, bundle: bundle);
-      // Nothing native or on an island: the tab is the way to DSH Web.
+      // A tab without native or island rendering cannot open here.
       final onWeb = item.mode == SeatMode.webLink;
       return Builder(
         key: ValueKey('chat-plugins-page|${o.package}|${o.cell}'),
         builder: (context) => ListPageRow(
           icon: AppIcons.plugin,
           title: title,
-          meta: onWeb ? l10n.commonWeb : null,
-          chevron: true,
-          onTap: () {
-            if (onWeb) {
-              final target = seatWebTarget(o, sessionId: widget.sessionId, bundle: bundle);
-              ref.read(seatWebOpenerProvider)(context, ref, target);
-            } else {
-              Navigator.of(context).push(
-                PluginSeatPage.route(
-                  title: title,
-                  request: SeatRequest(
-                    slot: o.slot,
-                    placement: SeatPlacement.page,
-                    sessionId: widget.sessionId,
-                    package: o.package,
-                    cell: o.cell,
-                  ),
-                ),
-              );
-            }
-          },
+          meta: onWeb ? l10n.pluginsUnavailable : null,
+          chevron: !onWeb,
+          onTap: onWeb
+              ? null
+              : () {
+                  Navigator.of(context).push(
+                    PluginSeatPage.route(
+                      title: title,
+                      request: SeatRequest(
+                        slot: o.slot,
+                        placement: SeatPlacement.page,
+                        sessionId: widget.sessionId,
+                        package: o.package,
+                        cell: o.cell,
+                      ),
+                    ),
+                  );
+                },
         ),
       );
     }
 
-    // The ways in: one row per conversation tab, its settings, DSH Web.
+    // Native/island conversation tabs and plugin settings.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
@@ -366,14 +362,6 @@ class _WebPluginsState extends ConsumerState<_WebPlugins> {
                   chevron: true,
                   onTap: () => unawaited(showBundleSheet(context, bundle)),
                 ),
-            ListPageRow(
-              key: const ValueKey('chat-plugins-web-link'),
-              icon: AppIcons.webApp,
-              title: l10n.commonOpenInWeb,
-              meta: l10n.commonWeb,
-              chevron: true,
-              onTap: () => ref.read(seatWebOpenerProvider)(context, ref, DshWebTarget(sessionId: widget.sessionId)),
-            ),
           ],
         ),
       ],

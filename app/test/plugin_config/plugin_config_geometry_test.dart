@@ -44,7 +44,7 @@ void main() {
     expect(screen.bottom - right.bottom, closeTo(12 + bottomInset, 0.5), reason: 'above the gesture bar');
   });
 
-  testWidgets('search, the web row, the fields and 高级 share one column', (tester) async {
+  testWidgets('search, the fields and 高级 share one column', (tester) async {
     await pumpConfigPage(tester, const PluginConfigPage(ns: 'speech-to-text-sensevoice'), sampleConfigApi());
     final screen = tester.getRect(find.byType(MaterialApp));
     final search = tester.getRect(find.byKey(const ValueKey('plugin-config-search')));
@@ -58,11 +58,10 @@ void main() {
     expect(fields.left - screen.left, 16);
 
     await pumpConfigPage(tester, const PluginConfigPage(ns: 'weather'), sampleConfigApi());
-    final web = _card(tester, find.text('在网页版设置'));
+    expect(find.text('在网页版设置'), findsNothing);
     final form = _card(tester, find.text('城市'));
-    expect(web.left, form.left);
-    expect(web.right, form.right);
-    expect(form.top - web.bottom, 24, reason: 'the gap between groups');
+    expect(form.left, fields.left);
+    expect(form.right, fields.right);
   });
 
   testWidgets('360 wide at 1.3x text: no overflow, the buttons stay equal', (tester) async {

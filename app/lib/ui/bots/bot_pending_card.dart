@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../state/bots_state.dart';
 import 'bot_chat_kit.dart';
-import 'install_card.dart';
 
 /// Owns pending-answer state for one Host, boot, Bot Session and card.
 class BotPendingCard extends ConsumerStatefulWidget {
@@ -107,9 +106,6 @@ class _BotPendingCardState extends ConsumerState<BotPendingCard> {
     final view = widget.view!;
     return BotViewCard(
       view: view,
-      onOpenInWeb: () {
-        if (_current()) ref.read(dsBotWebOpenerProvider)(context, ref);
-      },
       onAnswer: (action, values) => _run(() => widget.api.answerView(widget.bot, view, action, values)),
       onDismiss: () => unawaited(_run(() => widget.api.dismissView(widget.bot))),
     );

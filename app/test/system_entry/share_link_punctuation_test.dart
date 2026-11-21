@@ -1,11 +1,6 @@
 // ignore_for_file: depend_on_referenced_packages
 import 'package:dsh_app/links/app_links.dart';
 import 'package:dsh_app/links/share_intake.dart';
-import 'package:dsh_app/ui/web/web_home.dart';
-import 'package:dsh_app/ui/web/dsh_web_launcher.dart';
-import 'package:webview_flutter_platform_interface/webview_flutter_platform_interface.dart';
-
-import '../web/support/fake_webview.dart';
 
 import 'package:dsh_app/share_code/share_codec.dart';
 import 'package:dsh_app/share_code/share_link.dart';
@@ -24,7 +19,7 @@ import '../chat/support/harness.dart';
 
 void main() {
   codecCases();
-  for (final entry in ['native', 'web']) {
+  for (final entry in ['native']) {
     for (final punctuation in ['bare', 'period', 'parenthesis', 'damaged']) {
       testWidgets('iOS original share channel opens valid import sheet entry=$entry punctuation=$punctuation', (
         tester,
@@ -36,24 +31,15 @@ void main() {
         }
         try {
           final harness = ChatHarness();
-          WebViewPlatform.instance = FakeWebViewPlatform();
           await tester.pumpWidget(
             testApp(
               Scaffold(
                 body: Stack(
                   fit: StackFit.expand,
-                  children: [
-                    const LinkHost(),
-                    const ShareCodeHost(),
-                    if (entry == 'native') const SystemEntryHost() else const WebHome(),
-                  ],
+                  children: [const LinkHost(), const ShareCodeHost(), const SystemEntryHost()],
                 ),
               ),
-              overrides: [
-                ...harness.overrides,
-                operatingSystemProvider.overrideWithValue('ios'),
-                dshWebAccessProvider.overrideWithValue(SshDshWeb(Uri.parse('http://127.0.0.1:41234/'), 'fixture')),
-              ],
+              overrides: [...harness.overrides, operatingSystemProvider.overrideWithValue('ios')],
             ),
           );
           await pumpFrames(tester);

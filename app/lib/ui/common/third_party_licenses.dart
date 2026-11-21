@@ -27,14 +27,6 @@ void registerThirdPartyLicenses({String? os}) {
     }
     final unicodeNotice = await rootBundle.loadString('assets/licenses/unicode-15.0.txt');
     yield LicenseEntryWithLineBreaks(<String>['Unicode Character Database (15.0.0)'], unicodeNotice);
-    // The libraries a card's scripts find on the tavern's canvas page, as 酒馆助手's pages
-    // give them; each package's own LICENSE file, verbatim.
-    yield LicenseEntryWithLineBreaks(<String>[
-      'jQuery',
-    ], await rootBundle.loadString('assets/licenses/jquery-3.7.1-LICENSE.txt'));
-    yield LicenseEntryWithLineBreaks(<String>[
-      'Lodash',
-    ], await rootBundle.loadString('assets/licenses/lodash-4.17.21-LICENSE.txt'));
     // The streaming recognizer's model, downloaded on demand (語音 › 实时识别). HarmonyOS
     // has no streaming recognizer (sherpa-onnx ships Android's libraries only).
     if (!harmony) {
@@ -90,7 +82,6 @@ const _inTheHap = <LicenseEntry>[
 const _iconsAndData = <LicenseEntry>[
   LicenseEntryWithLineBreaks(<String>['Phosphor Icons'], _phosphorMit),
   LicenseEntryWithLineBreaks(<String>['Material Icons'], _materialIconsNotice + _apache2),
-  LicenseEntryWithLineBreaks(<String>['discourse-emojis'], _discourseEmojisMit),
 ];
 
 const _harmonyRuntimeNotice = '''
@@ -231,6 +222,7 @@ SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
 CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.''';
+
 /// Libraries.dev (UI effects in lib/ui/fx), commit 387b049.
 const _librariesDevMit = '''
 MIT License
@@ -349,16 +341,6 @@ const _phosphorMit = '''
 MIT License
 
 Copyright (c) 2023 Phosphor Icons
-
-$_mitTerms''';
-
-/// discourse-emojis: the forum emoji names and aliases (`lib/forum/emoji_data.g.dart`, data
-/// only). The project ships no LICENSE file; its gemspec declares MIT.
-const _discourseEmojisMit = '''
-discourse-emojis (https://github.com/discourse/discourse-emojis)
-Discourse, author Joffrey Jaffeux
-
-Released under the MIT License (per discourse-emojis.gemspec):
 
 $_mitTerms''';
 

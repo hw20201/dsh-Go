@@ -8,7 +8,6 @@ import 'package:dsh_app/pets/pet_signals.dart';
 import 'package:dsh_app/pets/pet_state.dart';
 import 'package:dsh_app/state/chat_state.dart';
 import 'package:dsh_app/state/hosts_state.dart';
-import 'package:dsh_app/state/ui_mode_state.dart';
 import 'package:dsh_app/ui/pets/pet_stage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,11 +18,6 @@ import '../chat/support/harness.dart' show FakeChatController;
 class _Prefs extends PetPrefsController {
   @override
   PetPrefs build() => const PetPrefs(packId: noPetId, loaded: true);
-}
-
-class _Mode extends UiModeController {
-  @override
-  UiModeState build() => const UiModeState(loaded: true);
 }
 
 class _Host extends ActiveHostController {
@@ -37,7 +31,6 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         petPrefsProvider.overrideWith(_Prefs.new),
-        uiModeProvider.overrideWith(_Mode.new),
         activeHostProvider.overrideWith(_Host.new),
         petOverlayBridgeProvider.overrideWith((ref) {}),
         petScopedStateProvider.overrideWith((ref, scope) => const PetState(state: PetStateName.idle)),
@@ -51,7 +44,9 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const MaterialApp(home: PetStage(sessionId: 'a', child: SizedBox.expand())),
+        child: const MaterialApp(
+          home: PetStage(sessionId: 'a', child: SizedBox.expand()),
+        ),
       ),
     );
     await tester.pump();

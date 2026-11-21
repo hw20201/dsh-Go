@@ -1,18 +1,13 @@
 // 插件详情 › 网页版界面 (docs/design/plugin-ui-v3.md §3.5): where a plugin's web
-// part lives that the app has no seat for, in plain words, each a way to DSH
-// Web. Nothing is dropped silently: an installed plugin with a browser half
-// always has at least one way to be seen.
+// part lives that the app has no seat for, listed as unavailable.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/l10n.dart';
 import '../../../plugins/seams/seams.dart';
-import '../../../state/sessions_state.dart';
 import '../../common/list_page_row.dart';
 import '../../theme/app_icons.dart';
-import '../../web/web_target.dart';
-import 'seat_links.dart' show seatWebOpenerProvider;
 
 /// A place in DSH Web, in the order the section lists them.
 enum WebPlace {
@@ -65,16 +60,6 @@ enum WebPlace {
     if (slot.startsWith('conversation.hero.')) return newChat;
     return elsewhere;
   }
-
-  /// Where 「网页版」 lands for this place.
-  DshWebTarget target({String? sessionId, List<String> pluginNames = const []}) => switch (this) {
-    besideComposer || header || messages || rightbar || files => DshWebTarget(sessionId: sessionId),
-    sidebar => const DshWebTarget(sidebar: true),
-    settings => const DshWebTarget(settings: DshWebSettings.plugins),
-    plugins => DshWebTarget(pluginItem: pluginNames),
-    newChat => const DshWebTarget(newSession: true),
-    overlay || elsewhere || unknown => const DshWebTarget(),
-  };
 }
 
 /// The places of [package]'s web part the app can't show, in order. Empty
@@ -125,13 +110,8 @@ class PluginWebPlacesSection extends ConsumerWidget {
               key: ValueKey('web-place-${place.name}'),
               icon: AppIcons.webApp,
               title: place.label,
-              meta: l10n.commonWeb,
-              chevron: true,
-              onTap: () => ref.read(seatWebOpenerProvider)(
-                context,
-                ref,
-                place.target(sessionId: ref.read(currentSessionProvider), pluginNames: [...pluginNames, package]),
-              ),
+              meta: l10n.pluginsUnavailable,
+              chevron: false,
             ),
         ],
       ),

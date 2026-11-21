@@ -1,9 +1,5 @@
-// 全部功能 logic: deep-link targets (what the DSH Web bridge receives), the
-// feature catalog's invariants, and the Chinese wording of schedule rules,
-// job states and presets.
-
-import 'dart:convert';
-import 'dart:io';
+// 全部功能 logic: catalog reachability and the Chinese wording of schedule
+// rules, job states and presets.
 
 import 'package:dsh_app/state/commands_state.dart';
 import 'package:dsh_app/ui/chat/slash_palette.dart';
@@ -13,7 +9,6 @@ import 'package:dsh_app/ui/features/feature_catalog.dart';
 import 'package:dsh_app/ui/features/feature_format.dart';
 import 'package:dsh_app/ui/settings/index/spots.dart';
 import 'package:dsh_app/ui/terminal/terminal_page.dart';
-import 'package:dsh_app/ui/web/web_target.dart';
 import 'package:dsh_client/dsh_client.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -44,81 +39,23 @@ ScheduleTask task(
 );
 
 void main() {
-  group('DshWebTarget', () {
-    test('serializes only what is set, as the bridge reads it', () {
-      expect(const DshWebTarget().toJson(), isEmpty);
-      expect(const DshWebTarget().isHome, isTrue);
-      expect(const DshWebTarget(panel: DshWebPanel.schedules).toJson(), {'panel': 'schedules'});
-      expect(const DshWebTarget(settings: DshWebSettings.agentPresets).toJson(), {'settings': 'agent-presets'});
-      expect(const DshWebTarget(pluginItem: ['Agent 循环', 'Agent loop']).toJson(), {
-        'pluginItem': ['Agent 循环', 'Agent loop'],
-      });
-      expect(const DshWebTarget(sessionId: 'session-1', rightbar: DshWebRightbar.terminal).toJson(), {
-        'session': 'session-1',
-        'rightbar': 'terminal',
-      });
-      expect(const DshWebTarget(sidebar: true).toJson(), {'sidebar': true});
-    });
-
-    test('openScript is a guarded call with JSON-escaped data', () {
-      const target = DshWebTarget(pluginItem: ["it's \"quoted\"</script>"]);
-      final script = target.openScript;
-      expect(script, startsWith('window.__dshAppOpen && window.__dshAppOpen('));
-      final json = script.substring(script.indexOf('(', 'window.__dshAppOpen && '.length) + 1, script.lastIndexOf(')'));
-      expect(jsonDecode(json), {
-        'pluginItem': ["it's \"quoted\"</script>"],
-      });
-    });
-
-    test('inSession keeps the destination and swaps the session', () {
-      const files = DshWebTarget(rightbar: DshWebRightbar.files);
-      expect(files.inSession('s9'), const DshWebTarget(sessionId: 's9', rightbar: DshWebRightbar.files));
-      expect(files.inSession(null), files);
-    });
-
-    test('bridge results become a short Chinese line on a miss', () {
-      expect(DshWebOpenResult.parse('{"ok":true,"step":null}')!.problem, isNull);
-      expect(DshWebOpenResult.parse('{"ok":false,"step":"pluginItem"}')!.problem, contains('没找到这个插件'));
-      expect(DshWebOpenResult.parse('{"ok":false}')!.problem, isNotNull);
-      expect(DshWebOpenResult.parse('not json'), isNull);
-    });
-
-    test('the bridge script knows every key the app sends', () {
-      final js = File('assets/web/dsh_web_open.js').readAsStringSync();
-      for (final p in DshWebPanel.values) {
-        expect(js, contains("${p.key}: ["), reason: 'panel ${p.key}');
-      }
-      for (final s in DshWebSettings.values) {
-        expect(js, contains(RegExp("'?${RegExp.escape(s.key)}'?: \\[")), reason: 'settings ${s.key}');
-      }
-      for (final r in DshWebRightbar.values) {
-        expect(js, contains("${r.key}: ["), reason: 'rightbar ${r.key}');
-      }
-      expect(js, contains('window.__dshAppOpen = function'));
-      expect(js, contains("'dsh.sessions.current'"));
-    });
-  });
-
   group('feature catalog', () {
     final items = [for (final s in featureSections) ...s.items];
 
     test('ids are unique and every item has a way in', () {
       expect(items.map((i) => i.id).toSet(), hasLength(items.length));
       for (final item in items) {
-        expect(item.native != null || item.action != null || item.web != null, isTrue, reason: item.id);
+        expect(item.native != null || item.action != null, isTrue, reason: item.id);
         expect(item.summary, isNotEmpty, reason: item.id);
       }
     });
 
-    test('native terminal and global settings have no redundant web fallback', () {
+    test('native terminal and global settings remain reachable', () {
       final terminal = items.firstWhere((i) => i.id == 'terminal');
       expect(terminal.needsSession, isTrue);
-      expect(terminal.webOnly, isFalse);
       final page = terminal.native!('s1');
       expect(page, isA<TerminalPage>());
       expect((page as TerminalPage).sessionId, 's1');
-      expect(terminal.webFor(null), isNull);
-      expect(terminal.webFor('s1'), isNull);
       // Settings left 全部功能 for 设置; their links still open the page.
       expect(pageForId('agent-loop', null), isA<AgentLoopSettingsPage>());
     });
@@ -145,28 +82,26 @@ void main() {
           'web-search',
           'shell-settings',
           'subagent-settings',
-          'general',
           'plugin-inventory',
           'cordis',
           'reference',
           'cot-translation',
           'voice-input',
           'account',
-          'community',
           'ds-bot',
           'share-profile',
         ]),
       );
     });
 
-    test('only the web itself is web-only now', () {
-      expect(
-        [
-          for (final i in items)
-            if (i.webOnly) i.id,
-        ],
-        ['web'],
-      );
+    test('removed modes and community pages are not reachable', () {
+      final catalogIds = items.map((item) => item.id).toSet();
+      for (final id in ['web', 'tavern', 'community', 'forum']) {
+        expect(catalogIds, isNot(contains(id)), reason: id);
+        expect(SettingsIndex.linkIds, isNot(contains(id)), reason: id);
+        expect(pageLinkId(Uri.parse('dshgo://open/$id')), isNull, reason: id);
+        expect(pageForId(id, null), isNull, reason: id);
+      }
     });
   });
 

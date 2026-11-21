@@ -5,7 +5,6 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../forum/forum_auth.dart';
 import '../secrets/secure_storage.dart';
 import '../share_hosted/hosted_links_state.dart';
 import 'android_features.dart';
@@ -41,7 +40,7 @@ class CredentialRecovery {
   ///
   /// What holds saved values in memory: [hostedLinksProvider] rewrites its whole
   /// list on any change, [relayBackendProvider]'s account rotates tokens into
-  /// the store, [forumAuthProvider] has the session and key pair, and
+  /// the store, and
   /// [settingsProvider] the API key and provider ids. They let go before the
   /// vault is cleared, so nothing can write old values into the new one, and read
   /// again after. The stores themselves cache nothing, and saved SSH hosts keep
@@ -60,7 +59,6 @@ class CredentialRecovery {
     _ref.read(readListCredentialEpochProvider.notifier).advance();
     _ref
       ..invalidate(hostedLinksProvider)
-      ..invalidate(relayBackendProvider)
-      ..invalidate(forumAuthProvider);
+      ..invalidate(relayBackendProvider);
   }
 }

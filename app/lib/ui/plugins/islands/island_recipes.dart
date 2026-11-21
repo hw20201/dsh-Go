@@ -78,7 +78,7 @@ class IslandRecipe {
 }
 
 /// `assets/islands/recipes.json`: the recipe per slot, the official ids the
-/// open bridge (`assets/web/dsh_web_open.js`) knows, and the names of the
+/// open bridge (`assets/islands/open.js`) knows, and the names of the
 /// official controls island.js clicks on the way.
 @immutable
 class IslandRecipeBook {

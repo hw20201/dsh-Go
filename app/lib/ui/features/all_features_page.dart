@@ -1,5 +1,4 @@
-// 全部功能: every official DSH Web feature with a way in — the app's own page
-// or the official page inside the app — as a hub of two-column cards in the
+// 全部功能: native features as a hub of two-column cards in the
 // accent; the nine headline features carry their tile in the user's style.
 // It holds what you go to do now; settings live in 设置, and the last group
 // is a few shortcuts there plus 全部设置 (settings search over the hub).
@@ -20,21 +19,11 @@ import '../common/tile_grid.dart';
 import '../shell/page_frame.dart';
 import '../theme/app_icons.dart';
 import '../theme/theme.dart';
-import '../web/dsh_web_launcher.dart';
-import '../web/web_target.dart';
 import '../plugins/seats/seat_probe.dart';
 import '../settings/search/settings_search_page.dart';
 import '../settings/settings_screen.dart';
 import 'feature_catalog.dart';
 import 'feature_widgets.dart';
-
-/// Opens DSH Web on a target; tests swap it for a recorder.
-typedef DshWebOpener = void Function(BuildContext context, WidgetRef ref, DshWebTarget target);
-
-final dshWebOpenerProvider = Provider<DshWebOpener>(
-  (ref) =>
-      (context, ref, target) => openDshWeb(context, ref, target: target),
-);
 
 /// 全部设置: the settings hub, with search open over it (back lands on the
 /// hub, then here).
@@ -59,14 +48,11 @@ class AllFeaturesPage extends ConsumerWidget {
         ? null
         : ref.watch(sessionsProvider).value?.where((s) => s.sessionId == sessionId).firstOrNull?.projections.title;
 
-    void openWeb(FeatureItem item) => ref.read(dshWebOpenerProvider)(context, ref, item.webFor(sessionId)!);
     void open(FeatureItem item) {
       if (item.native case final page?) {
         Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page(sessionId)));
       } else if (item.action case final action?) {
         unawaited(Future.sync(() => action(context, ref, sessionId)));
-      } else {
-        openWeb(item);
       }
     }
 
@@ -81,12 +67,7 @@ class AllFeaturesPage extends ConsumerWidget {
           TileGrid(
             children: [
               for (final item in section.items)
-                FeatureTileFor(
-                  item: item,
-                  enabled: !item.needsSession || sessionId != null,
-                  onOpen: () => open(item),
-                  onOpenWeb: item.hasNative && item.web != null ? () => openWeb(item) : null,
-                ),
+                FeatureTileFor(item: item, enabled: !item.needsSession || sessionId != null, onOpen: () => open(item)),
             ],
           ),
           if (section.id == settingsFeatureSection)
@@ -144,17 +125,9 @@ class FeatureGroupLabel extends StatelessWidget {
 }
 
 /// One feature as a card: its [FeatureTile] when it has one, else its icon on
-/// an accent circle; 「网页版」 in the corner for items that only live there, a
-/// small globe for items that have both.
+/// an accent circle, with an unread badge for DSBot.
 class FeatureTileFor extends ConsumerWidget {
-  const FeatureTileFor({
-    super.key,
-    required this.item,
-    this.tint,
-    required this.onOpen,
-    this.onOpenWeb,
-    this.enabled = true,
-  });
+  const FeatureTileFor({super.key, required this.item, this.tint, required this.onOpen, this.enabled = true});
 
   final FeatureItem item;
 
@@ -162,14 +135,11 @@ class FeatureTileFor extends ConsumerWidget {
   final int? tint;
   final VoidCallback onOpen;
 
-  /// Secondary way in for items that have both.
-  final VoidCallback? onOpenWeb;
   final bool enabled;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
-    final scheme = Theme.of(context).colorScheme;
     final unread = item.id == 'ds-bot' ? ref.watch(dsBotInboxProvider.select((inbox) => inbox.total)) : 0;
     return FeatureCard(
       icon: item.icon,
@@ -181,21 +151,7 @@ class FeatureTileFor extends ConsumerWidget {
       title: item.title,
       subtitle: enabled ? item.summary : l10n.catalogOpenChatFirst,
       enabled: enabled,
-      // 「网页版」 itself needs no badge saying so.
-      badge: unread > 0
-          ? (unread > 99 ? '99+' : '$unread')
-          : item.webOnly && item.web != const DshWebTarget()
-          ? l10n.commonWeb
-          : null,
-      corner: onOpenWeb == null
-          ? null
-          : IconButton(
-              tooltip: l10n.commonOpenInWeb,
-              padding: EdgeInsets.zero,
-              iconSize: FeatureCard.cornerIcon,
-              onPressed: enabled ? onOpenWeb : null,
-              icon: Icon(AppIcons.webApp, color: scheme.onSurfaceVariant),
-            ),
+      badge: unread > 0 ? (unread > 99 ? '99+' : '$unread') : null,
       onTap: onOpen,
     );
   }

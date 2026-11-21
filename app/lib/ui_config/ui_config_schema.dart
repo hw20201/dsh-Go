@@ -112,8 +112,8 @@ abstract final class UiSchema {
 
   // ── plugins ────────────────────────────────────────────────────────────
 
-  /// `plugins.seats` values; `web` is the seat planner's 「在网页版打开」.
-  static const seatModes = ['native', 'island', 'web', 'hidden'];
+  /// `plugins.seats` values supported by the native app.
+  static const seatModes = ['native', 'island', 'hidden'];
 
   // ── actions ────────────────────────────────────────────────────────────
 
@@ -149,8 +149,6 @@ abstract final class UiSchema {
     'agent-team',
     'cot-translation',
     'voice-input',
-    'forum',
-    'community',
     'ds-bot',
     'share-profile',
     'search',
@@ -162,7 +160,6 @@ abstract final class UiSchema {
     'phone',
     'system-actions',
     'diagnostics',
-    'web',
     'new-chat',
     'settings',
   ];

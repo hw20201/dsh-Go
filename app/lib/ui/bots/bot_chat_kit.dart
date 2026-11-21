@@ -812,10 +812,9 @@ class _BotQuestionCardState extends State<BotQuestionCard> {
 /// A view card from `show_view` that waits: its text, then the first thing to
 /// answer (options, a confirmation or a short form).
 class BotViewCard extends StatefulWidget {
-  const BotViewCard({super.key, required this.view, required this.onAnswer, required this.onDismiss, this.onOpenInWeb});
+  const BotViewCard({super.key, required this.view, required this.onAnswer, required this.onDismiss});
 
   final DsBotViewCard view;
-  final VoidCallback? onOpenInWeb;
   final Future<bool> Function(String action, Map<String, Object?> values) onAnswer;
   final VoidCallback onDismiss;
 
@@ -987,12 +986,8 @@ class _BotViewCardState extends State<BotViewCard> {
         trailing: CardCloseKey(onTap: widget.onDismiss),
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(ChatCard.inset, 4, ChatCard.inset, ChatCard.inset),
-            child: FilledButton(
-              key: const ValueKey('bot-view-open-web'),
-              onPressed: widget.onOpenInWeb,
-              child: Text(l10n.commonOpenInWeb, textAlign: TextAlign.center),
-            ),
+            padding: const EdgeInsets.fromLTRB(ChatCard.inset, 0, ChatCard.inset, 12),
+            child: Text(l10n.pluginsUnavailable, style: theme.textTheme.bodyMedium),
           ),
         ],
       );

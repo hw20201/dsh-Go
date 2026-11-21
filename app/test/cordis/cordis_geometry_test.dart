@@ -46,30 +46,16 @@ void main() {
       expect(card.left, closeTo(gutter, .5));
       expect(card.right, closeTo(width - gutter, .5));
 
-      final open = rect(find.widgetWithText(FilledButton, '在网页版打开'));
-      final stop = rect(find.widgetWithText(OutlinedButton, '停止'));
+      final stop = rect(find.widgetWithText(FilledButton, '停止'));
       final remove = rect(find.widgetWithText(OutlinedButton, '移除'));
-      expect(open.left, closeTo(gutter, .5));
-      expect(open.right, closeTo(width - gutter, .5));
-      for (final button in [open, stop, remove]) {
+      expect(find.text('在网页版打开'), findsNothing);
+      for (final button in [stop, remove]) {
         expect(button.height, 50);
+        expect(button.left, closeTo(gutter, .5));
+        expect(button.right, closeTo(width - gutter, .5));
+        expect(card.left, closeTo(button.left, .5));
+        expect(card.right, closeTo(button.right, .5));
       }
-      if ((stop.top - remove.top).abs() < .5) {
-        // Side by side: equal halves, 8 apart, mirrored about the centre.
-        expect(stop.left, closeTo(gutter, .5));
-        expect(remove.right, closeTo(width - gutter, .5));
-        expect(stop.width, closeTo(remove.width, .5));
-        expect(remove.left - stop.right, closeTo(8, .5));
-        expect((stop.left + remove.right) / 2, closeTo(width / 2, .5));
-      } else {
-        for (final button in [stop, remove]) {
-          expect(button.left, closeTo(gutter, .5));
-          expect(button.right, closeTo(width - gutter, .5));
-        }
-      }
-      // The facts card and the buttons share both edges.
-      expect(card.left, closeTo(open.left, .5));
-      expect(card.right, closeTo(open.right, .5));
     });
   }
 

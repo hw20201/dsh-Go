@@ -1,6 +1,6 @@
 # Settings
 
-Tap the gear at the bottom of the chat list to open Settings; touch and hold it to search right away. The round button beside it opens All features, which ends with shortcuts to settings. In Web mode, tap the app logo and choose **App settings**.
+Tap the gear at the bottom of the chat list to open Settings; touch and hold it to search right away. The round button beside it opens All features, which ends with shortcuts to settings.
 
 <!-- nav: commonSettings -->
 `Settings` · [Open](dshgo://open/settings)
@@ -39,7 +39,7 @@ Shows your DeepSeek account or API key and balance; tap it to open your account.
 
 ## General
 
-- **Interface**: the **Mode** group at the top sets **Open on launch** (Work, Companion or Tavern). Below it, choose whether the app opens to **Native** or **Web**, and DSH Web's options; see [Web mode](05-web.md).
+- **Interface**: choose Work or Companion for **Open on launch**, and configure shortcuts.
 - **Language**: **System**, **简体中文** or **English**.
 - **Notifications**: turn on **Allow notifications**, then choose **Turn complete**, **Error or stopped**, **Needs approval** and **Questions for you**. Alerts need the app running, and none go out once the system suspends it; alerts from remote hosts also need the connection online. **Progress notification** shows a chat's status in the notification bar; it's a plain notification and stops updating once the system suspends the app. Sound, banners and the lock screen are set in system settings; banners are off by default.
 - **Voice**: how voice input recognizes speech: **Automatic**, **DeepSeek**, **System** or **Another cloud service**. **Automatic** uses DeepSeek when you're signed in or have an API key, otherwise the system's recognition; with DeepSeek or another cloud service, the recording is sent to that service. HarmonyOS's own engine has no voice model; **Voice model** is offered only while connected to a remote host. This page also has **Reading voice** (for reading replies aloud and voice calls), **Live captions** (the HarmonyOS recognizer, showing whether it's available, with no model to download), and for voice calls **Call background**, **Interrupt by speaking**, **Pause before she answers**, **Spoken answers**, **Speakerphone by default** and **Thinking sound**.
@@ -59,8 +59,7 @@ Shows your DeepSeek account or API key and balance; tap it to open your account.
 
 ## Help and about
 
-- **Help**: takes "what can this app do" to a new chat, where the AI answers from this guide. Not shown in Web mode.
-- **Community**: chat groups and the forum.
+- **Help**: takes "what can this app do" to a new chat, where the AI answers from this guide.
 - **Diagnostics**: inspect the environment, export a bundle, or **Let the AI read diagnostics**, and enable **Automatic failure analysis** (off by default); when the keyboard covers the input, **This app's keyboard geometry** exports where the keyboard sat in the last two minutes, without anything typed. See [FAQ](11-faq.md).
 - **About DSH Go**:
   - **Version**: the app version, such as 0.9.2 (10251234), with the build number in parentheses. When there's a new version, this row on the Settings page says **Update available**.
@@ -75,5 +74,5 @@ Shows your DeepSeek account or API key and balance; tap it to open your account.
 `Settings › Permissions` · [Open](dshgo://open/permission)
 
 - **Current chat**: shown with a chat open; changes that chat only.
-- **Default for new chats**: **Read only**, **Workspace write** or **Full access**. Choosing **Full access** asks **Turn on Full access?** first. On this phone's engine it is what used to be "Auto-run commands": in chats and automations you create in the native interface on this phone's engine, the AI no longer asks before running commands or changing files. Remote hosts, Web mode, Safe mode and existing chats aren't affected. Switching back doesn't change chats created while it was on; change those in the chat's permissions.
+- **Default for new chats**: **Read only**, **Workspace write** or **Full access**. Choosing **Full access** asks **Turn on Full access?** first. On this phone's engine it is what used to be "Auto-run commands": in chats and automations you create in the native interface on this phone's engine, the AI no longer asks before running commands or changing files. Remote hosts, Safe mode and existing chats aren't affected. Switching back doesn't change chats created while it was on; change those in the chat's permissions.
 - System actions follow these permissions too: no asking with full access, otherwise it asks each time. See [System actions](04-phone-control.md).

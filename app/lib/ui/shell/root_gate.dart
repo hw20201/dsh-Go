@@ -7,7 +7,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../diagnostics/automatic_diagnostics.dart';
 import '../../launch/launch_state.dart';
 import '../../launch/startup_trace.dart';
-import '../../state/app_mode_state.dart';
 import '../../state/hosts_state.dart';
 import '../../state/notify_state.dart';
 import '../../state/onboarding_state.dart';
@@ -15,7 +14,8 @@ import '../../state/settings_state.dart';
 import '../onboarding/onboarding_flow.dart';
 import '../remote/remote_screen.dart';
 import '../theme/theme.dart';
-import '../web/mode_home.dart';
+import '../modes/mode_switch.dart';
+import 'home_shell.dart';
 import 'brand_mark.dart';
 import 'usage_upgrade_notice.dart';
 
@@ -49,6 +49,7 @@ class _RootGateState extends ConsumerState<RootGate> {
     await ref.read(activeHostProvider.notifier).ready;
     if (mounted) setState(() => _hostRestored = true);
   }
+
   bool _launchReady = false;
   bool _pickingRemote = false;
   OnboardingStep? _step;
@@ -71,12 +72,6 @@ class _RootGateState extends ConsumerState<RootGate> {
     _goTo(null);
   }
 
-  void _chooseTavern() {
-    unawaited(ref.read(appModeProvider.notifier).setStartup(AppMode.tavern));
-    unawaited(ref.read(onboardingPrefsProvider.notifier).setLocalDeclined(true));
-    _goTo(null);
-  }
-
   @override
   Widget build(BuildContext context) {
     ref.watch(automaticDiagnosticsProvider);
@@ -96,14 +91,13 @@ class _RootGateState extends ConsumerState<RootGate> {
         child = OnboardingFlow(
           step: step,
           onRemote: _useRemote,
-          onTavern: _chooseTavern,
           onWelcomeDone: () {
             unawaited(ref.read(onboardingPrefsProvider.notifier).markWelcomeSeen());
             _goTo(OnboardingStep.choice);
           },
         );
       } else {
-        child = UsageUpgradeNotice(child: widget.home ?? const ModeHome());
+        child = UsageUpgradeNotice(child: widget.home ?? const ModeLaunch(child: HomeShell()));
       }
     }
     if (child is! _Splash && !_launchReady) {
@@ -161,10 +155,7 @@ class _SplashState extends State<_Splash> {
           child: AnimatedOpacity(
             opacity: _visible ? 1 : 0,
             duration: AppMotion.of(context, AppMotion.slow),
-            child: const Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [BrandMark(size: 64, tile: true)],
-            ),
+            child: const Column(mainAxisSize: MainAxisSize.min, children: [BrandMark(size: 64, tile: true)]),
           ),
         ),
       ),

@@ -6,7 +6,6 @@ import 'package:dsh_app/state/connection_state.dart';
 import 'package:dsh_app/state/hosts_state.dart';
 import 'package:dsh_app/ui/bots/bot_chat_kit.dart';
 import 'package:dsh_app/ui/bots/bot_chat_page.dart';
-import 'package:dsh_app/ui/bots/install_card.dart';
 import 'package:dsh_client/dsh_client.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -112,7 +111,6 @@ void main() {
             );
           }),
           dsBotApiFactoryProvider.overrideWithValue((c) => DsBotApi(c.isLocal ? old : next)),
-          dsBotWebOpenerProvider.overrideWithValue((context, ref) => opened.add(ref.read(activeHostProvider).id)),
         ],
       ),
     );
@@ -121,65 +119,32 @@ void main() {
   }
 
   for (final schema in ['slider', 'formula', 'future-input']) {
-    testWidgets('$schema has only current-host web fallback, no answer', (t) async {
+    testWidgets('$schema is unavailable without submitting an answer', (t) async {
       final old = FakeDsBotTransport(team: fallbackTeam(schema));
       final next = FakeDsBotTransport(team: fallbackTeam(schema));
       final opened = <String>[];
       final c = await open(t, old, next, opened);
       expect(find.widgetWithText(FilledButton, 'Confirm'), findsNothing);
       expect(find.widgetWithText(ChoiceChip, 'Two'), findsNothing);
-      await t.tap(find.byKey(const ValueKey('bot-view-open-web')));
+      expect(find.byKey(const ValueKey('bot-view-open-web')), findsNothing);
       await t.pump();
-      expect(opened, ['local']);
+      expect(opened, isEmpty);
       c.read(activeHostProvider.notifier).select(const HostRef.ssh('next'));
       await frames(t);
-      await t.tap(find.byKey(const ValueKey('bot-view-open-web')));
+      expect(find.byKey(const ValueKey('bot-view-open-web')), findsNothing);
       await t.pump();
-      expect(opened, ['local', 'next']);
-      expect([...old.endpoints, ...next.endpoints].where((e) => e == 'view-reply'), isEmpty);
-      expect(t.takeException(), isNull);
-    });
-  }
-  for (final change in ['host', 'api', 'boot', 'session']) {
-    testWidgets('stale web callback is retired after $change', (t) async {
-      final team = fallbackTeam('slider');
-      final old = FakeDsBotTransport(team: team);
-      final next = FakeDsBotTransport(team: fallbackTeam('slider'));
-      final opened = <String>[];
-      final c = await open(t, old, next, opened);
-      final callback = t.widget<FilledButton>(find.byKey(const ValueKey('bot-view-open-web'))).onPressed!;
-      switch (change) {
-        case 'host':
-          c.read(activeHostProvider.notifier).select(const HostRef.ssh('next'));
-        case 'api':
-          c.read(dsBotProvider.notifier).retry();
-        case 'boot':
-          old.emit('hello', {'revision': 1, 'api': 1, 'boot': 'new-boot', 'seq': 0});
-          for (var i = 0; i < 10; i++) {
-            await Future<void>.value();
-          }
-        case 'session':
-          final changed = jsonDecode(jsonEncode(team)) as Map;
-          for (final bot in changed['bots'] as List) {
-            if (bot['id'] == 'writer') bot['sessionId'] = 'new-part';
-          }
-          old.handlers['state'] = (_) => changed;
-          await c.read(dsBotProvider.notifier).refresh();
-      }
-      callback();
-      await frames(t);
       expect(opened, isEmpty);
       expect([...old.endpoints, ...next.endpoints].where((e) => e == 'view-reply'), isEmpty);
       expect(t.takeException(), isNull);
     });
   }
-  testWidgets('read-only unsupported card may open its web view without answering', (t) async {
+  testWidgets('read-only unsupported card remains unavailable without answering', (t) async {
     final old = FakeDsBotTransport(team: fallbackTeam('slider', readOnly: true));
     final opened = <String>[];
     await open(t, old, old, opened);
-    await t.tap(find.byKey(const ValueKey('bot-view-open-web')));
+    expect(find.byKey(const ValueKey('bot-view-open-web')), findsNothing);
     await t.pump();
-    expect(opened, ['local']);
+    expect(opened, isEmpty);
     expect(old.endpoints.where((e) => e == 'view-reply'), isEmpty);
   });
 }

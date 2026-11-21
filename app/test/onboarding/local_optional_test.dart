@@ -1,13 +1,10 @@
-// Remote-only onboarding preserves host selection, tavern and shared runtime contracts.
+// Remote-only onboarding preserves host selection and shared runtime contracts.
 
 import 'dart:convert';
 
 import 'package:dsh_app/remote/secret_store.dart';
-import 'package:dsh_app/runtime/local_footprint.dart';
 import 'package:dsh_app/runtime/runtime_bridge.dart';
 import 'package:dsh_app/runtime/runtime_state.dart';
-import 'package:dsh_app/state/account_state.dart';
-import 'package:dsh_app/state/app_mode_state.dart';
 import 'package:dsh_app/state/connection_state.dart';
 import 'package:dsh_app/state/hosts_state.dart';
 import 'package:dsh_app/state/onboarding_state.dart';
@@ -21,7 +18,6 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../account/support.dart' show FakeBrowser, NoConnection;
 import '../remote/support/fake_relay.dart';
 import '../remote/support/fake_ssh.dart';
 import '../shell/golden_harness.dart';
@@ -36,19 +32,6 @@ Future<void> _frames(WidgetTester tester, [int n = 10]) async {
 }
 
 void main() {
-  group('footprint', () {
-    test('suggests the remote host on a small or full phone only', () {
-      expect(roomyPhone.suggestRemote, isFalse);
-      expect(smallPhone.lowMemory, isTrue);
-      expect(smallPhone.suggestRemote, isTrue);
-      expect(fullPhone.lowStorage, isTrue);
-      expect(fullPhone.requiredStorageMb, 862);
-      expect(fullPhone.requiredRoundedMb, 900);
-      expect(const LocalFootprint().suggestRemote, isFalse);
-      expect(LocalFootprint.round(749), 750);
-    });
-  });
-
   group('root gate', () {
     late MemorySecretStore secrets;
     late FakeSshServer server;
@@ -85,7 +68,6 @@ void main() {
           overrides: [
             localRuntimeProvider.overrideWith(() => runtime),
             settingsProvider.overrideWith(() => FakeSettings(settings)),
-            footprint(roomyPhone),
             ...remote(),
           ],
         ),
@@ -94,17 +76,11 @@ void main() {
       return (runtime, ProviderScope.containerOf(tester.element(find.byType(RootGate))));
     }
 
-    Future<void> chooseRemote(WidgetTester tester) async {
-      await tester.tap(find.byKey(_remote));
-      await tester.pump(const Duration(milliseconds: 300));
-      await tester.tap(find.widgetWithText(FilledButton, '继续'));
-      await _frames(tester);
-    }
-
     testWidgets('远程主机 → pick a host → home, nothing installed', (tester) async {
       final (runtime, container) = await pumpGate(tester);
-      expect(find.text('想怎么用 dsh-Go？'), findsOneWidget);
-      await chooseRemote(tester);
+      expect(find.byKey(_remote), findsOneWidget);
+      await tester.tap(find.byKey(_remote));
+      await _frames(tester);
       expect(find.byType(RemoteScreen), findsOneWidget);
 
       await tester.scrollUntilVisible(find.text('电脑'), 300, scrollable: find.byType(Scrollable).first);
@@ -119,24 +95,15 @@ void main() {
 
     testWidgets('back from the host list without a host: the choice again', (tester) async {
       final (runtime, container) = await pumpGate(tester);
-      await chooseRemote(tester);
+      await tester.tap(find.widgetWithText(FilledButton, '继续'));
+      await _frames(tester);
+      expect(find.byType(RemoteScreen), findsOneWidget);
+
       await tester.binding.handlePopRoute();
       await _frames(tester);
       expect(find.byType(RemoteScreen), findsNothing);
-      expect(find.text('想怎么用 dsh-Go？'), findsOneWidget);
+      expect(find.byKey(_remote), findsOneWidget);
       expect(container.read(onboardingPrefsProvider).localDeclined, isFalse);
-      expect(runtime.calls, isEmpty);
-    });
-
-    testWidgets('和角色聊天 → home in 酒馆, nothing installed and no key asked for', (tester) async {
-      final (runtime, container) = await pumpGate(tester);
-      await tester.tap(find.byKey(const ValueKey('runtime-option-tavern')));
-      await tester.pump(const Duration(milliseconds: 300));
-      await tester.tap(find.widgetWithText(FilledButton, '继续'));
-      await _frames(tester);
-      expect(find.text('home'), findsOneWidget);
-      expect(container.read(onboardingPrefsProvider).localDeclined, isTrue);
-      expect(container.read(appModeProvider).startup, AppMode.tavern);
       expect(runtime.calls, isEmpty);
     });
 
@@ -164,29 +131,6 @@ void main() {
       expect(find.text('启动引擎'), findsNothing);
       expect(find.text('安装运行环境'), findsNothing);
       expect(find.text('看看工作区'), findsOneWidget);
-    });
-
-    test('DeepSeek sign-in without the runtime fails at once', () async {
-      final container = ProviderContainer(
-        overrides: [
-          localRuntimeProvider.overrideWith(
-            () => RecordingLocalRuntime(const LocalRuntimeState(loaded: true, status: missingStatus)),
-          ),
-          accountEngineStarterProvider.overrideWithValue(() async => fail('must not start')),
-          accountBrowserProvider.overrideWithValue(FakeBrowser()),
-          localConnectionProvider.overrideWith(NoConnection.new),
-          onboardingPrefsProvider.overrideWith(FakeOnboardingPrefs.new),
-          settingsProvider.overrideWith(() => FakeSettings(const AppSettings(loaded: true))),
-        ],
-      );
-      addTearDown(container.dispose);
-      container.listen(accountProvider, (_, _) {});
-      // The app's root keeps the runtime's state alive from launch.
-      container.listen(localRuntimeProvider, (_, _) {});
-      final result = await container.read(accountProvider.notifier).signIn().timeout(const Duration(seconds: 2));
-      expect(result, SignInResult.failed);
-      expect(container.read(accountProvider).failure?.kind, SignInFailureKind.noRuntime);
-      expect(container.read(accountProvider).failure?.title, '需要本机运行环境');
     });
   });
 }

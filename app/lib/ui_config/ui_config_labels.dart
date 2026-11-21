@@ -36,7 +36,6 @@ Map<String, String> get _groupNames => {
 Map<String, String> get _seatNames => {
   'native': appL10n.shellSeatNative,
   'island': appL10n.shellSeatIsland,
-  'web': appL10n.shellSeatWeb,
   'hidden': appL10n.commonHide,
 };
 

@@ -6,7 +6,7 @@ Run from app/:
     python3 tool/make_feature_tiles.py
 
 One master per style and feature: assets/tiles/<style>/<kind>.svg, for the two vector
-styles (duotone, geometric) and the nine features. Every master is plain SVG in a 96 grid
+styles (duotone, geometric) and the eight features. Every master is plain SVG in a 96 grid
 (`viewBox="0 0 96 96"`), drawn with a small subset:
 
     <rect x y width height rx [transform="rotate(a cx cy)"]>
@@ -27,7 +27,7 @@ Writes the shapes as `Path` builders, in drawing order. Pure Python, no dependen
 The third style, glass gradient, is painted, not drawn: assets/tiles/glassy/<kind>.webp.
 To redo them (or add a feature), generate the set again with GLASSY_PROMPT below and the
 app icon as the only reference image, cut it into transparent 512px PNGs named
-`<n>-<kind>.png` (n = 1..9 in KINDS order), then
+`<n>-<kind>.png` (n = 1..8 in KINDS order), then
 
     python3 tool/make_feature_tiles.py --glassy DIR
 
@@ -44,7 +44,7 @@ SRC = os.path.join(APP, 'assets', 'tiles')
 OUT = os.path.join(APP, 'lib', 'ui', 'common', 'feature_tile_shapes.g.dart')
 
 STYLES = ['duotone', 'geometric']
-KINDS = ['terminal', 'files', 'workspace', 'subagents', 'plugins', 'automation', 'models', 'phone', 'community']
+KINDS = ['terminal', 'files', 'workspace', 'subagents', 'plugins', 'automation', 'models', 'phone']
 TONES = ['wash', 'mid', 'ink', 'on']
 NUM = r'-?\d+(?:\.\d+)?'
 
@@ -225,7 +225,7 @@ def dart_layers(layers):
 
 
 GLASSY_PROMPT = """\
-A set of app feature icons, one per cell of a 3x3 grid on flat chroma green, no plates
+A set of app feature icons, eight icons arranged in a grid on flat chroma green, no plates
 behind them. Style: GLASSY GRADIENT, the same material as the reference icon's fish tail
 and bubble: smooth soft shapes with gentle gradients from periwinkle blue (#6F86D6)
 through soft blue (#9DB7F5) to ice blue (#DCE8FF) and white highlights, a soft inner

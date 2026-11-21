@@ -24,7 +24,6 @@ import '../l10n/l10n.dart';
 import '../ui_config/ui_skill.dart' show guideSkillName;
 import 'attachments.dart';
 import 'compose_inbox.dart';
-import 'ui_mode_state.dart';
 
 /// What a 「问 AI」 entry asks. Each has one question and the guide page that
 /// answers it; entries exist only where the guide covers the topic.
@@ -151,6 +150,5 @@ Future<ComposeRequest> askAiQuestionRequest(
   }
 }
 
-/// Whether 「问 AI」 entries show: not in 网页模式, where the home is the web
-/// page and the native composer isn't there to take the question.
-final askAiAvailableProvider = Provider<bool>((ref) => !ref.watch(uiModeProvider.select((s) => s.web)));
+/// Native composition is always available.
+final askAiAvailableProvider = Provider<bool>((ref) => true);

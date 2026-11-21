@@ -130,7 +130,13 @@ void main() {
     // The hub's last group, by its spot.
     await tester.pumpWidget(
       goldenApp(
-        home: spotPage(Spots.community),
+        // The About entry opens its page; to show the hub with the row in
+        // view, focus the hub on the entry directly (spotPage would open
+        // the About page instead, and the hub would never appear).
+        home: SpotFocus(
+          target: SettingsIndex.entry(SettingsPageId.about).id,
+          child: settingsPage(SettingsPageId.hub),
+        ),
         brightness: Brightness.light,
         overrides: [
           localRuntimeProvider.overrideWith(
@@ -144,10 +150,10 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
     }
     expect(find.byType(SettingsScreen), findsOneWidget);
-    final rect = tester.getRect(find.byKey(SpotKey(Spots.community.id)));
+    final rect = tester.getRect(find.byKey(SpotKey(SettingsIndex.entry(SettingsPageId.about).id)));
     expect(rect.top, greaterThan(0));
     expect(rect.bottom, lessThan(844));
-    expect(find.text(appL10n.hubSettingsCommunity), findsOneWidget);
+    expect(find.text(appL10n.hubAbout), findsOneWidget);
     await tester.pump(const Duration(seconds: 2));
   });
 }

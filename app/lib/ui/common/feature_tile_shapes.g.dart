@@ -18,7 +18,6 @@ enum FeatureKind {
   automation,
   models,
   phone,
-  community,
 }
 
 /// A colour role of a tile, resolved from the theme by `TilePalette`.
@@ -244,56 +243,6 @@ abstract final class DuotoneTiles {
       ]),
   ]);
 
-  static final community = TileArt([
-    TileLayer([
-        TileShape(TileTone.wash, Path()
-          ..moveTo(50, 29)
-          ..lineTo(70, 29)
-          ..arcToPoint(const Offset(88, 47), radius: const Radius.circular(18), largeArc: false, clockwise: true)
-          ..lineTo(88, 55)
-          ..arcToPoint(const Offset(76, 69), radius: const Radius.circular(18), largeArc: false, clockwise: true)
-          ..lineTo(78, 85)
-          ..lineTo(63, 73)
-          ..lineTo(50, 73)
-          ..arcToPoint(const Offset(32, 55), radius: const Radius.circular(18), largeArc: false, clockwise: true)
-          ..lineTo(32, 47)
-          ..arcToPoint(const Offset(50, 29), radius: const Radius.circular(18), largeArc: false, clockwise: true)
-          ..close()),
-      ], cuts: [
-        TileShape(null, Path()
-          ..moveTo(26, 11)
-          ..lineTo(48, 11)
-          ..arcToPoint(const Offset(66, 29), radius: const Radius.circular(18), largeArc: false, clockwise: true)
-          ..lineTo(66, 39)
-          ..arcToPoint(const Offset(48, 57), radius: const Radius.circular(18), largeArc: false, clockwise: true)
-          ..lineTo(33, 57)
-          ..lineTo(18, 69)
-          ..lineTo(20, 53)
-          ..arcToPoint(const Offset(8, 39), radius: const Radius.circular(18), largeArc: false, clockwise: true)
-          ..lineTo(8, 29)
-          ..arcToPoint(const Offset(26, 11), radius: const Radius.circular(18), largeArc: false, clockwise: true)
-          ..close(), stroke: 8, fill: false),
-      ]),
-    TileLayer([
-        TileShape(TileTone.wash, Path()
-          ..moveTo(26, 11)
-          ..lineTo(48, 11)
-          ..arcToPoint(const Offset(66, 29), radius: const Radius.circular(18), largeArc: false, clockwise: true)
-          ..lineTo(66, 39)
-          ..arcToPoint(const Offset(48, 57), radius: const Radius.circular(18), largeArc: false, clockwise: true)
-          ..lineTo(33, 57)
-          ..lineTo(18, 69)
-          ..lineTo(20, 53)
-          ..arcToPoint(const Offset(8, 39), radius: const Radius.circular(18), largeArc: false, clockwise: true)
-          ..lineTo(8, 29)
-          ..arcToPoint(const Offset(26, 11), radius: const Radius.circular(18), largeArc: false, clockwise: true)
-          ..close()),
-        TileShape(TileTone.ink, Path()..addOval(Rect.fromCircle(center: const Offset(25, 34), radius: 4.2))),
-        TileShape(TileTone.ink, Path()..addOval(Rect.fromCircle(center: const Offset(37, 34), radius: 4.2))),
-        TileShape(TileTone.ink, Path()..addOval(Rect.fromCircle(center: const Offset(49, 34), radius: 4.2))),
-      ]),
-  ]);
-
   static TileArt of(FeatureKind kind) => switch (kind) {
     FeatureKind.terminal => terminal,
     FeatureKind.files => files,
@@ -303,7 +252,6 @@ abstract final class DuotoneTiles {
     FeatureKind.automation => automation,
     FeatureKind.models => models,
     FeatureKind.phone => phone,
-    FeatureKind.community => community,
   };
 }
 
@@ -413,37 +361,6 @@ abstract final class GeometricTiles {
       ]),
   ]);
 
-  static final community = TileArt([
-    TileLayer([
-        TileShape(TileTone.mid, Path()
-          ..moveTo(50, 11)
-          ..lineTo(72, 11)
-          ..arcToPoint(const Offset(88, 27), radius: const Radius.circular(16), largeArc: false, clockwise: true)
-          ..lineTo(88, 37)
-          ..arcToPoint(const Offset(77, 49), radius: const Radius.circular(16), largeArc: false, clockwise: true)
-          ..lineTo(79, 65)
-          ..lineTo(65, 53)
-          ..lineTo(50, 53)
-          ..arcToPoint(const Offset(34, 37), radius: const Radius.circular(16), largeArc: false, clockwise: true)
-          ..lineTo(34, 27)
-          ..arcToPoint(const Offset(50, 11), radius: const Radius.circular(16), largeArc: false, clockwise: true)
-          ..close()),
-        TileShape(TileTone.ink, Path()
-          ..moveTo(24, 29)
-          ..lineTo(48, 29)
-          ..arcToPoint(const Offset(64, 45), radius: const Radius.circular(16), largeArc: false, clockwise: true)
-          ..lineTo(64, 57)
-          ..arcToPoint(const Offset(48, 73), radius: const Radius.circular(16), largeArc: false, clockwise: true)
-          ..lineTo(31, 73)
-          ..lineTo(17, 85)
-          ..lineTo(19, 69)
-          ..arcToPoint(const Offset(8, 57), radius: const Radius.circular(16), largeArc: false, clockwise: true)
-          ..lineTo(8, 45)
-          ..arcToPoint(const Offset(24, 29), radius: const Radius.circular(16), largeArc: false, clockwise: true)
-          ..close()),
-      ]),
-  ]);
-
   static TileArt of(FeatureKind kind) => switch (kind) {
     FeatureKind.terminal => terminal,
     FeatureKind.files => files,
@@ -453,6 +370,5 @@ abstract final class GeometricTiles {
     FeatureKind.automation => automation,
     FeatureKind.models => models,
     FeatureKind.phone => phone,
-    FeatureKind.community => community,
   };
 }

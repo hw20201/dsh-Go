@@ -271,7 +271,7 @@ void main() {
   }
 }
 
-const _sampleKinds = [FeatureKind.terminal, FeatureKind.automation, FeatureKind.community];
+const _sampleKinds = [FeatureKind.terminal, FeatureKind.automation, FeatureKind.phone];
 
 class _Card extends StatelessWidget {
   const _Card({required this.child});

@@ -6,21 +6,19 @@ import 'welcome_page.dart';
 
 enum OnboardingStep { welcome, choice }
 
-/// First run chooses a remote host or standalone tavern mode.
+/// First run introduces the app and connects a remote host.
 class OnboardingFlow extends StatelessWidget {
-  const OnboardingFlow({super.key, required this.step, required this.onWelcomeDone,
-    required this.onRemote, required this.onTavern});
+  const OnboardingFlow({super.key, required this.step, required this.onWelcomeDone, required this.onRemote});
 
   final OnboardingStep step;
   final VoidCallback onWelcomeDone;
   final VoidCallback onRemote;
-  final VoidCallback onTavern;
 
   @override
   Widget build(BuildContext context) => OnboardingSwitcher(
     child: switch (step) {
       OnboardingStep.welcome => WelcomePage(key: const ValueKey('welcome'), onStart: onWelcomeDone),
-      OnboardingStep.choice => RuntimeChoiceView(key: const ValueKey('choice'), onRemote: onRemote, onTavern: onTavern),
+      OnboardingStep.choice => RuntimeChoiceView(key: const ValueKey('choice'), onRemote: onRemote),
     },
   );
 }

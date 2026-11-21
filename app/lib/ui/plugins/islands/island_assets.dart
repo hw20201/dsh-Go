@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'island_recipes.dart';
 
 /// The scripts and styles an island injects, read once per app run:
-/// `assets/web/dsh_web_open.js` (the 网页版's open bridge, read only),
+/// `assets/islands/open.js` (the plugin navigation bridge),
 /// `assets/islands/island.js`, `island.css` with the App's code font, and
 /// `recipes.json`.
 class IslandAssets {
@@ -23,7 +23,7 @@ class IslandAssets {
 
   Future<String> _text(String path) => _bundle.loadString('assets/$path', cache: false);
 
-  Future<String> get openBridge => _open ??= _text('web/dsh_web_open.js');
+  Future<String> get openBridge => _open ??= _text('islands/open.js');
 
   Future<String> get runtime => _runtime ??= _text('islands/island.js');
 

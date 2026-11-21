@@ -1,6 +1,6 @@
 # Settings
 
-Tap the gear at the bottom of the chat list to open Settings; touch and hold it to search right away. The round button beside it opens All features, which ends with shortcuts to settings. In Web mode, tap the app logo and choose **App settings**.
+Tap the gear at the bottom of the chat list to open Settings; touch and hold it to search right away. The round button beside it opens All features, which ends with shortcuts to settings.
 
 <!-- nav: commonSettings -->
 `Settings` · [Open](dshgo://open/settings)
@@ -38,7 +38,7 @@ Shows your DeepSeek account or API key and balance; tap it to open your account.
 
 ## General
 
-- **Interface**: the **Mode** group at the top sets **Open on launch** (Work, Companion or Tavern). Below it, choose whether the app opens to **Native** or **Web**, and DSH Web's options; see [Web mode](05-web.md).
+- **Interface**: choose Work or Companion for **Open on launch**, and configure shortcuts.
 - **Language**: **System**, **简体中文** or **English**.
 - **Notifications**: turn on **Allow notifications**, then choose **Turn complete**, **Error or stopped**, **Needs approval** and **Questions for you**. Alerts from remote hosts need the app running and the connection online. Sound, banners and the lock screen are set in system settings.
 - **Voice**: the **Reading voice** (for reading replies aloud, the companion room and voice calls), how voice input recognizes speech (**Automatic**, **DeepSeek**, **System**, **Voice model** or **Another cloud service**), the voice model download, and for voice calls **Call background**, **Interrupt by speaking**, **Spoken answers** and **Speakerphone by default**. On iPhone, voice input currently uses the system recognizer; local model downloads and live PCM captions are not available yet. Voice calls need a working DeepSeek account, API key or another cloud recognizer to recognize recordings and end when the app goes to the background.
@@ -58,8 +58,7 @@ Shows your DeepSeek account or API key and balance; tap it to open your account.
 
 ## Help and about
 
-- **Help**: takes "what can this app do" to a new chat, where the AI answers from this guide. Not shown in Web mode.
-- **Community**: chat groups and the forum.
+- **Help**: takes "what can this app do" to a new chat, where the AI answers from this guide.
 - **Diagnostics**: inspect the environment, export a bundle, or enable **Automatic failure analysis** (off by default); see [FAQ](11-faq.md).
 - **About DSH Go**:
   - **Version**: the app version, such as 0.9.2 (10251234), with the build number in parentheses. When there's a new version, this row on the Settings page says **Update available**.
@@ -76,6 +75,6 @@ Shows your DeepSeek account or API key and balance; tap it to open your account.
 `Settings › Permissions` · [Open](dshgo://open/permission)
 
 - **Current chat**: shown with a chat open; changes that chat only.
-- **Default for new chats**: **Read only**, **Workspace write** or **Full access**. Choosing **Full access** asks **Turn on Full access?** first. On this phone's engine it is what used to be "Auto-run commands": in chats and automations you create in the native interface on this phone's engine, the AI no longer asks before running commands or changing files. Remote hosts, Web mode, Safe mode and existing chats aren't affected. Switching back doesn't change chats created while it was on; change those in the chat's permissions.
+- **Default for new chats**: **Read only**, **Workspace write** or **Full access**. Choosing **Full access** asks **Turn on Full access?** first. On this phone's engine it is what used to be "Auto-run commands": in chats and automations you create in the native interface on this phone's engine, the AI no longer asks before running commands or changing files. Remote hosts, Safe mode and existing chats aren't affected. Switching back doesn't change chats created while it was on; change those in the chat's permissions.
 - **Access phone files**: after you grant storage access, your phone's storage appears under /sdcard in Linux and the AI can read and write it. Turning it on or off restarts a running engine, interrupting replies in progress. Shown only with this phone's engine.
 - **Phone control confirmation**: opens **Confirmation** on the Phone control page; see [Phone control](04-phone-control.md).

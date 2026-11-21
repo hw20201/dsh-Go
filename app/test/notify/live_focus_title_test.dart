@@ -7,7 +7,6 @@ import 'package:dsh_app/state/chat_state.dart';
 import 'package:dsh_app/state/hosts_state.dart';
 import 'package:dsh_app/state/live_activity_state.dart';
 import 'package:dsh_app/state/notify_state.dart';
-import 'package:dsh_app/state/ui_mode_state.dart';
 import 'package:dsh_app/ui/pets/pet_stage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -60,11 +59,6 @@ ProviderContainer _container() {
 class _PetPrefs extends PetPrefsController {
   @override
   PetPrefs build() => const PetPrefs(packId: noPetId, loaded: true);
-}
-
-class _Mode extends UiModeController {
-  @override
-  UiModeState build() => const UiModeState(loaded: true);
 }
 
 class _Host extends ActiveHostController {
@@ -184,7 +178,6 @@ void main() {
       overrides: [
         notifyPrefsProvider.overrideWith(_Prefs.new),
         petPrefsProvider.overrideWith(_PetPrefs.new),
-        uiModeProvider.overrideWith(_Mode.new),
         activeHostProvider.overrideWith(_Host.new),
         petOverlayBridgeProvider.overrideWith((ref) {}),
         petScopedStateProvider.overrideWith((ref, scope) => const PetState(state: PetStateName.idle)),

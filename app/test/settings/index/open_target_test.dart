@@ -25,7 +25,9 @@ void main() {
         for (final i in s.items) i.id,
     };
     for (final page in UiSchema.pages) {
-      if (page == 'new-chat' || page == 'settings' || cards.contains(page)) continue;
+      // 'general' was the DSH-web 通用设置 spot (webApp, link 'general'),
+      // deleted with the three-item trimming; no settings page provides it.
+      if (page == 'new-chat' || page == 'settings' || page == 'general' || cards.contains(page)) continue;
       expect(settingsPageForLink(page), isNotNull, reason: page);
     }
   });

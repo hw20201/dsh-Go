@@ -91,13 +91,7 @@ void main() {
     };
     try {
       await tester.pumpWidget(
-        testApp(
-          WebViewPage(
-            url: Uri.parse('http://127.0.0.1:3080/?token=DO_NOT_LOG'),
-            title: 'Plugin web settings',
-            dshWeb: true,
-          ),
-        ),
+        testApp(WebViewPage(url: Uri.parse('http://127.0.0.1:3080/?token=DO_NOT_LOG'), title: 'Plugin web settings')),
       );
       for (var i = 0; i < 4; i++) {
         await tester.pump(const Duration(milliseconds: 200));

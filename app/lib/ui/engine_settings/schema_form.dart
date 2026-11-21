@@ -28,8 +28,6 @@ import '../settings/settings_widgets.dart' show SettingsMetrics;
 import '../shell/page_frame.dart';
 import '../theme/app_icons.dart';
 import '../theme/theme.dart';
-import '../web/dsh_web_launcher.dart';
-import '../web/web_target.dart';
 import 'field_row.dart';
 import 'field_sheets.dart';
 import 'schema_fields.dart';
@@ -702,27 +700,20 @@ List<SchemaFormSection> schemaSections(
   return sections;
 }
 
-/// One unsupported item still leaves the rest of the native form available:
-/// its title over 「在网页版编辑此项」 (wrapping, never cut), the
-/// open-external glyph where a chevron would be, the row opening the item on
-/// the web.
-class SchemaUnsupportedField extends ConsumerWidget {
+/// An unsupported item stays read-only while the remaining native fields
+/// remain editable.
+class SchemaUnsupportedField extends StatelessWidget {
   const SchemaUnsupportedField({super.key, required this.title, required this.ns});
   final String title;
   final String ns;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) => EngineFieldRow(
-    title: title,
-    subtitle: context.l10n.engineFieldEditOnWeb,
-    opensExternally: true,
-    onTap: () => openDshWeb(context, ref, target: DshWebTarget(pluginItem: [ns])),
-  );
+  Widget build(BuildContext context) => EngineFieldRow(title: title, subtitle: context.l10n.pluginConfigUnsupported);
 }
 
-/// Whether a namespace has anything a form would show. A web fallback row
-/// alone is not a native form: such a namespace stays with the plugin's
-/// island or web page (#44), and fallback rows only fill gaps beside fields.
+/// Whether a namespace has native form fields. An unsupported row alone is not
+/// a form: such a namespace stays with the plugin's island, while read-only
+/// rows fill gaps beside editable fields.
 bool hasFormFields(SettingsNamespaceView view) =>
     schemaSections(view).any((s) => s.fields.any((f) => f.fallbackNode == null));
 

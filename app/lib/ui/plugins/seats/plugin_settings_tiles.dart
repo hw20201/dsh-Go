@@ -40,7 +40,7 @@ Iterable<(SeatContext, SeatItem)> _items(WidgetRef ref, String slot) {
 }
 
 /// One plugin section as a hub row: its settings form, its island page, or
-/// 「网页版」 when it only opens there.
+/// an unavailable label when neither is supported.
 class PluginSettingsTile extends ConsumerWidget {
   const PluginSettingsTile({super.key, required this.seat, required this.item, this.tint = 0});
 
@@ -59,15 +59,13 @@ class PluginSettingsTile extends ConsumerWidget {
       return SchemaUnsupportedField(title: title, ns: ns);
     }
     final title = seatEntryTitle(o, inventory: ref.watch(seatInventoryProvider), bundle: bundle);
-    final bool web;
-    final void Function(BuildContext context) open;
+    final void Function(BuildContext context)? open;
     if (item.mode == SeatMode.native) {
       // One settings namespace opens the same page the plugin's detail does.
       final info = ref.watch(seatInventoryProvider)?.infoOf(o.package);
       final namespaces = item.adapter is SchemaConfigAdapter && info != null
           ? SchemaConfigAdapter.namespacesFor(o, info)
           : const <String>[];
-      web = false;
       open = namespaces.length == 1
           ? (context) => unawaited(openSettingsPage(context, namespaces.single, title: title))
           : (context) => unawaited(
@@ -80,15 +78,15 @@ class PluginSettingsTile extends ConsumerWidget {
             );
     } else {
       final entry = seatRowEntry(ref, seat, item, title: title);
-      web = entry.web;
       open = entry.open;
     }
     return SettingsTile(
       icon: AppIcons.plugin,
       tint: tint,
       title: title,
-      value: web ? Text(l10n.commonWeb) : null,
-      onTap: () => open(context),
+      value: open == null ? Text(l10n.pluginsUnavailable) : null,
+      chevron: open != null,
+      onTap: open == null ? null : () => open!(context),
     );
   }
 }

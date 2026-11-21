@@ -103,7 +103,7 @@ void main() {
       expect(load.config.themeMode, isNull);
       expect(load.config.pet, isNull);
       expect(load.config.seats, {
-        'conversation.input.dock': {'ok-pkg': UiSeatMode.web},
+        'conversation.input.dock': {'ok-pkg': UiSeatMode.hidden},
       });
       expect(
         load.issues,

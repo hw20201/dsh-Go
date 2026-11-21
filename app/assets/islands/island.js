@@ -1,6 +1,6 @@
 // dsh-go web island runtime (docs/design/plugin-seams.md §6). Injected by the
 // app's IslandController after every load, right after the read-only
-// `assets/web/dsh_web_open.js` (its __dshAppOpen does the session hop and the
+// `assets/islands/open.js` (its __dshAppOpen does the session hop and the
 // settings / panel / right-sidebar clicks). Idempotent per document.
 //
 //   window.__dshGoIsland.init(cfg)     once per load: navigate, find the slot,

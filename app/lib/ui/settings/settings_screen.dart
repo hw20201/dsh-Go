@@ -17,7 +17,6 @@ import '../../state/hosts_state.dart';
 import '../../state/plugins_state.dart';
 import '../../state/sessions_state.dart';
 import '../../state/settings_state.dart';
-import '../../state/ui_mode_state.dart';
 import '../../state/update_state.dart';
 import '../account/account_page.dart';
 import '../account/account_widgets.dart';
@@ -29,7 +28,6 @@ import '../common/search_capsule.dart';
 import '../engine_settings/engine_settings_hub.dart';
 import '../engine_settings/web_search_page.dart';
 import 'media_settings_page.dart';
-import '../features/feature_catalog.dart' show communityPage;
 import '../features/feature_format.dart' show permissionName;
 import '../features/permission_page.dart';
 import '../onboarding/api_key_page.dart' show maskApiKey;
@@ -88,7 +86,6 @@ class SettingsScreen extends ConsumerWidget {
     final colors = DshColors.of(context);
     final notifier = ref.read(settingsProvider.notifier);
     final android = ref.watch(androidSystemFeaturesProvider);
-    final uiMode = ref.watch(uiModeProvider.select((s) => s.mode));
     final host = ref.watch(activeHostProvider);
     Widget? text(String? value, {Color? color}) =>
         value == null ? null : Text(value, style: color == null ? null : TextStyle(color: color));
@@ -212,7 +209,6 @@ class SettingsScreen extends ConsumerWidget {
               icon: AppIcons.swap,
               tint: SettingsHues.general,
               spot: SettingsIndex.entry(SettingsPageId.interface),
-              value: Text(uiMode.label),
               onTap: () => _push(context, const InterfacePage()),
             ),
             const LanguageSettingsTile(tint: SettingsHues.general),
@@ -274,12 +270,6 @@ class SettingsScreen extends ConsumerWidget {
                 value: Text(l10n.askAiTooltip),
                 onTap: () => unawaited(askAi(context, AskAiTopic.overview)),
               ),
-            SettingsTile(
-              icon: AppIcons.community,
-              tint: SettingsHues.help,
-              spot: Spots.community,
-              onTap: () => _push(context, communityPage()),
-            ),
             SettingsTile(
               icon: AppIcons.diagnostics,
               tint: SettingsHues.help,

@@ -8,7 +8,6 @@ import 'package:dsh_app/state/hosts_state.dart';
 import 'package:dsh_app/state/plugins_state.dart';
 import 'package:dsh_app/ui/plugins/seats/seat_links.dart';
 import 'package:dsh_app/ui/theme/theme.dart';
-import 'package:dsh_app/ui/web/web_target.dart';
 import 'package:dsh_client/dsh_client.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -92,9 +91,6 @@ class NoEngineSettings extends EngineSettingsController {
   Future<EngineSettings?> build() async => null;
 }
 
-/// Where the seats tried to open DSH Web.
-final openedWeb = <DshWebTarget>[];
-
 /// The real web entries; [island] stands in for the IslandView.
 SeatRenderers testRenderers({SeatIslandBuilderOverride? island}) => SeatRenderers(
   island: island ?? (context, spec, items, fallback) => FakeIsland(spec: spec),
@@ -124,7 +120,6 @@ List<Override> seatOverrides({
   seatRenderersProvider.overrideWithValue(renderers ?? testRenderers()),
   installedPluginsProvider.overrideWith(() => FixedInstalled(bundles ?? [probeBundle, petBundle])),
   if (engineSettings) engineSettingsProvider.overrideWith(NoEngineSettings.new),
-  seatWebOpenerProvider.overrideWithValue((context, ref, target) => openedWeb.add(target)),
 ];
 
 /// What a plugin's page might look like once its island is up: a heading,

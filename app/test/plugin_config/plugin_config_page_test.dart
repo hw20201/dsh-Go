@@ -15,8 +15,6 @@ import 'package:dsh_app/state/plugins_state.dart' show installedPluginsProvider;
 import 'package:dsh_app/ui/engine_settings/engine_settings_hub.dart';
 import 'package:dsh_app/ui/plugins/config/plugin_config_page.dart';
 import 'package:dsh_app/ui/plugins/plugin_detail_sheet.dart';
-import 'package:dsh_app/ui/plugins/seats/seat_links.dart' show seatWebOpenerProvider;
-import 'package:dsh_app/ui/web/web_target.dart';
 import 'package:dsh_client/dsh_client.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -139,25 +137,55 @@ void main() {
     expect(find.text('未设置'), findsWidgets);
   });
 
-  testWidgets('a plugin with its own web page keeps the way there, and its native fields', (tester) async {
+  testWidgets('a plugin with a web page retains only its native fields', (tester) async {
     final api = sampleConfigApi();
-    final opened = <DshWebTarget>[];
-    await pumpPage(
-      tester,
-      const PluginConfigPage(ns: 'weather'),
-      overrides: [
-        ...configOverrides(api),
-        seatWebOpenerProvider.overrideWithValue((context, ref, target) => opened.add(target)),
-      ],
-    );
+    await pumpPage(tester, const PluginConfigPage(ns: 'weather'), overrides: [...configOverrides(api)]);
     expect(find.text('城市'), findsOneWidget);
     expect(find.text('单位'), findsOneWidget);
-    final web = find.text('在网页版设置');
-    expect(web, findsOneWidget);
-    expect(tester.getTopLeft(web).dy, lessThan(tester.getTopLeft(find.text('城市')).dy), reason: 'its page comes first');
-    await tester.tap(web);
+    expect(find.text('在网页版设置'), findsNothing);
+  });
+
+  testWidgets('unsupported fields stay read-only while native fields still save', (tester) async {
+    final api = MemoryPluginConfigApi([
+      voiceEntry(),
+      translatorEntry(),
+      MemoryPluginEntry(
+        ns: 'weather',
+        autoGenerate: false,
+        schema: fields({
+          'city': str(zh: '城市', en: 'City', required: true),
+          'units': choice(['metric', 'imperial'], def: 'metric', zh: '单位', en: 'Units'),
+          'refresh': {
+            'type': 'union',
+            'list': [
+              {'type': 'number'},
+              {'type': 'const', 'value': 'auto'},
+            ],
+            'meta': {
+              'description': {'zh': '刷新间隔', 'en': 'Refresh'},
+            },
+          },
+        }),
+        base: {'units': 'metric', 'refresh': 'auto'},
+      ),
+    ]);
+    await _open(tester, 'weather', api);
+    expect(find.text('暂不支持在这里设置'), findsOneWidget);
+    expect(find.text('在网页版编辑此项'), findsNothing);
+    expect(find.text('在网页版设置'), findsNothing);
+    await tester.tap(find.text('暂不支持在这里设置'));
     await settle(tester);
-    expect(opened.single.pluginItem, ['天气', 'Weather', '@acme/dsh-weather']);
+    expect(find.byType(PluginConfigPage), findsOneWidget);
+    expect(api.calls.where((c) => c.$1 == 'apply'), isEmpty);
+
+    await tester.tap(find.text('单位'));
+    await settle(tester);
+    await tester.tap(find.text('imperial').last);
+    await settle(tester);
+    await tester.tap(find.byKey(_primary));
+    await settle(tester);
+    expect(api.entries['weather']!.user, {'units': 'imperial'});
+    expect(api.entries['weather']!.base['refresh'], 'auto');
   });
 
   testWidgets('a Host that reads forms one at a time: the page reads its own', (tester) async {
@@ -266,9 +294,8 @@ void main() {
       Builder(
         builder: (context) => Center(
           child: TextButton(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(builder: (_) => const PluginConfigPage(ns: 'speech-to-text-sensevoice')),
-            ),
+            onPressed: () => Navigator.of(context)
+                .push(MaterialPageRoute<void>(builder: (_) => const PluginConfigPage(ns: 'speech-to-text-sensevoice'))),
             child: const Text('open'),
           ),
         ),

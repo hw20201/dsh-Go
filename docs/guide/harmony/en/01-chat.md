@@ -30,7 +30,7 @@ When the composer is empty and speech recognition is available, the send button 
 
 ## Read aloud and voice calls
 
-Under each reply there is a **Read aloud** key: tap it to hear the reply, tap again to stop. It's also in the reply's long-press menu, and in the tavern when you long-press a character's message. Code blocks, tables and link addresses are left out. DeepSeek's voice is used by default, paid by your signed-in DeepSeek account, or the API key in Settings when signed out; you can switch to the phone's own voice, which costs nothing and works offline:
+Under each reply there is a **Read aloud** key: tap it to hear the reply, tap again to stop. It's also in the reply's long-press menu. Code blocks, tables and link addresses are left out. DeepSeek's voice is used by default, paid by your signed-in DeepSeek account, or the API key in Settings when signed out; you can switch to the phone's own voice, which costs nothing and works offline:
 
 <!-- nav: commonSettings,voiceSettingsTitle,speechVoiceTitle -->
 `Settings › Voice › Reading voice`
@@ -99,7 +99,7 @@ Touch and hold your own message for **Copy**, **Select text** and **Edit and res
 
 ## All features
 
-The round button at the bottom of the chat list opens **All features**, where everything from the web version lives: chat details, files the AI produced, files, the terminal, background tasks, skills, subagents, schedules and more. See [All features](14-all-features.md).
+The round button at the bottom of the chat list opens **All features**, with features including: chat details, files the AI produced, files, the terminal, background tasks, skills, subagents, schedules and more. See [All features](14-all-features.md).
 
 ## Organize the chat list
 

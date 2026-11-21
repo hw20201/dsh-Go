@@ -63,7 +63,6 @@ Flutter Dart ── MethodChannel ──> Swift（DshPlugin / EngineChannel）
 | `app/` | Flutter App + Android/iOS 原生实现 | `lib/main.dart`、`android/.../MainActivity.kt`、`ios/Runner/AppDelegate.swift` | 本仓库主体 |
 | `packages/dsh_client/` | DSH Web API 纯 Dart 客户端（连接/RPC/mux/事件/各域 API） | `lib/dsh_client.dart`（barrel） | 不依赖 Flutter，可单测 |
 | `packages/dsh_remote/` | 远程传输：账号、SSH 宿主、Noise IK 加密通道、WebRTC/中继、隧道 carrier | `lib/dsh_remote.dart` | 依赖 dsh_client 的 carrier 抽象 |
-| `packages/dsh_tavern/` | SillyTavern 兼容酒馆引擎（纯 Dart，191 个测试文件） | `lib/dsh_tavern.dart` | 与 AGPL 上游同许可，来源见 NOTICES |
 | `packages/dartssh2/` | vendored dartssh2 4.1.0 + 补丁 | `VENDORED.md` | app 的 SSH 链路用它 |
 | `runtime/` | 本机引擎已移除（本 fork 只走远程 SSH / Relay）：仅剩 iOS、鸿蒙与 media | `ios/`、`ohos/`、`media/` | — |
 | `sdk/plugin-kit/` | 原生插件作者 SDK（schema、checker、视图解析 JS 孪生、技能） | `bin/check.mjs`、`schema/` | private 包，不发 npm |
@@ -109,12 +108,11 @@ HomeShell = [ChatScreen] + [SessionsDrawer 左] + [QuickPanel 右] + [SystemEntr
 | 聊天 | `chat/`（123 文件） | 页 `chat_screen.dart`、列表 `chat_list.dart`、行模型 `chat_rows.dart`、`render/`（Markdown/流式修补/代码块/diff）、`widgets/`（消息/工具卡）、`dsh_ui/`（App 声明式视图卡）、`composer`、`voice/` |
 | 会话 | `sessions/` `session/` `replay/` | 列表、详情、导出/回放 |
 | 设置 | `settings/`（六组：AI/能力/外观/通用/主机/帮助） `engine_settings/` `access/` `safe_mode/` `providers/` `account/` | 设置 hub + 子页 + 搜索索引（`settings/index/spots.dart` 是标题与页面的单一来源） |
-| 引擎/连接 | `engine/` `remote/` `onboarding/` `web/` | 引擎状态与日志、远程主机、首次引导、官方 Web 兜底 |
+| 引擎/连接 | `engine/` `remote/` `onboarding/` | 引擎状态与日志、远程主机、首次引导 |
 | 扩展 | `plugins/` `cordis/` `workshop/` | 原生插件详情/列表、Cordis、创意工坊 |
-| 内容功能 | `tavern/`（酒馆） `bots/` `companion/` `pets/` `star/` | 酒馆页、机器人、伙伴小屋、桌宠、Star 提示 |
+| 内容功能 | `bots/` `companion/` `pets/` `star/` | 机器人、伙伴小屋、桌宠、Star 提示 |
 | 工具 | `phone/` `terminal/` `files/` `workspace/` `agents/` `notify/` `update/` | 手机操控/审批页、终端、文件、工作区、子代理、通知、更新 |
 | 分享/外观 | `share/` `share_code/` `share_hosted/` `wallpaper/` `launch/` `theme/` `common/` `features/` | 分享、壁纸、开屏、设计系统（`theme/` 主要 import l10n；个别文件 import `common/`，已有 theme↔common 循环）、功能目录 |
-| 其他 | `forum/` `community/` | 论坛、社区 |
 
 > 路由是**分散的**：页面自己 `Navigator.of(context).push(...)`（ui 下 168 处、106 个文件，其中 `MaterialPageRoute` 155 处），
 > 只有深链（`app/lib/links/page_links.dart`）和设置索引（`settings/index/spots.dart`）有集中表。
@@ -161,8 +159,8 @@ HomeShell = [ChatScreen] + [SessionsDrawer 左] + [QuickPanel 右] + [SystemEntr
 | `diagnostics/` | 诊断快照/zip/脱敏/发布 | `diagnostics_bundle.dart`、`diagnostics_publish.dart` |
 | `share_code/` `share_hosted/` | 分享码/对话导出（打码）；加密托管链接 | `conversation_redact.dart`、`hosted_client.dart` |
 | `remote/` | 远程 UI 侧：链路状态、网络监测、WebRTC peer、SSH 转发 | `relay/webrtc_peer.dart`、`ssh/local_forward.dart` |
-| `tavern/` `companion/` `pets/` | 酒馆逻辑、伙伴小屋、桌宠 overlay 桥 | 各自 `*_state.dart`/`*_bridge.dart` |
-| `links/` `launch/` `notify/` `voice/` `usage/` `performance/` `wallpaper/` `forum/` `workshop/` | 深链、开屏、通知、语音、用量、性能、壁纸、论坛、工坊 | 各自通道/服务 |
+| `companion/` `pets/` | 伙伴小屋、桌宠 overlay 桥 | 各自 `*_state.dart`/`*_bridge.dart` |
+| `links/` `launch/` `notify/` `voice/` `usage/` `performance/` `wallpaper/` `workshop/` | 深链、开屏、通知、语音、用量、性能、壁纸、工坊 | 各自通道/服务 |
 | `dev/` | 开发探针入口（不进发行包） | `runtime_probe_main.dart` 等 |
 
 > **ui.json 现状**：内核/解析/schema 齐全，但当前只有 4 处真正接线——
@@ -326,9 +324,9 @@ DshConnection      单个 Host 的物理连接：launch-token → cookie、Host 
 
 Direct configuration sync uses the authenticated Host business RPC `host.direct.config.get.v1` to obtain `{url, token}`, outside generic engine endpoints so credentials do not enter the engine tracer. The Host must opt in with `direct.enabled` and a phone-reachable `direct.publicUrl`. Discovery adds only missing entries and never selects a host automatically. A direct login GET rejected with 401 reuses the associated Remote link, respecting the selected transport policy, and retries direct login once with a different token. It never redirects chat traffic or replays mutations, approvals or terminal input. Server, Host and endpoint checks, stale-response rejection, serialized credential writes/deletion and token-only updates protect existing entries and Basic Auth. Legacy unscoped associations require an exact endpoint match. Unsupported, disabled, offline or repeatedly rejected refreshes preserve the saved configuration and report failure.
 
-### 4.3 dsh_tavern / dartssh2
+### 4.3 dartssh2
 
-酒馆引擎（SillyTavern 兼容：角色卡/世界书/宏/斜杠命令/正则）纯 Dart；dartssh2 是 vendored 上游加压缩补丁。
+dartssh2 是 vendored 上游加压缩补丁。
 
 ## 5. 协议与数据流
 
@@ -405,7 +403,7 @@ DSH npm 前缀（runtime/locks）→ rtbuild 按 series 应用目标平台的补
 - proot 等可执行文件以 `lib*.so` 放 jniLibs，`useLegacyPackaging = true` 使其解压到 `nativeLibraryDir`。
 - Android 本地连接：原生层启动 `dsh web --host 127.0.0.1 --port 3080 --no-open`，从 stdout 解析 token；
   Dart 侧 `dsh_client` 用 token 换 cookie（`dsh-auth-<base64url(sha256(authority))>`，30 天，绑定 host:port），
-  之后 HTTP/WS 带 cookie、不带 Origin；WebView 兜底直接打开 `http://127.0.0.1:3080/?token=…`。
+  之后 HTTP/WS 带 cookie、不带 Origin。
 - iOS Xcode 用 `Runner.xcworkspace`、Swift Package Manager；带本机引擎的构建必须先运行
   `tooling/ios/prepare-engine.sh`。`EngineChannel` 在 App 内启动 NodeMobile 和本机 `dsh web`，
   通过实际端口与 token 建立本机连接；不能把 Android 的固定端口或 APK 安装器带过来。
@@ -473,7 +471,7 @@ DSH npm 前缀（runtime/locks）→ rtbuild 按 series 应用目标平台的补
 | 改动面 | 命令 |
 |---|---|
 | Flutter 应用 | `(cd app && flutter pub get && flutter analyze && flutter test)` |
-| Dart 包 | `(cd packages/dsh_client && dart pub get && dart analyze && dart test)`；dsh_remote / dsh_tavern 同理 |
+| Dart 包 | `(cd packages/dsh_client && dart pub get && dart analyze && dart test)`；dsh_remote 同理 |
 | 桥/补丁 | `node --test runtime/tests/*.test.mjs`；`python3 -I runtime/tests/test_patch_dsh.py`；`bash runtime/tests/run-guard-tests.sh "$DSH_PREFIX"`、`bash runtime/tests/run-native-tests.sh "$DSH_PREFIX"` |
 | 插件 SDK | `(cd sdk/plugin-kit && npm install && npm test)`（含生成物过期检查） |
 | 生成链（改 SDK/bridge/schema 后按序） | `gen-types → sync-bridge → sync-messages → gen-parity → sync-skill` |

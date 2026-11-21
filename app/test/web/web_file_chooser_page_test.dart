@@ -74,7 +74,7 @@ void main() {
 
   Future<void> pumpPage(WidgetTester tester) async {
     usePhoneView(tester);
-    await tester.pumpWidget(testApp(WebViewPage(url: Uri.parse('http://127.0.0.1:3080/'), title: '网页', dshWeb: true)));
+    await tester.pumpWidget(testApp(WebViewPage(url: Uri.parse('http://127.0.0.1:3080/'), title: '网页')));
     await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
     await tester.pump();
     expect(web.controller.selector, isNotNull);

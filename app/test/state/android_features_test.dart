@@ -1,5 +1,5 @@
 // Platform-specific features stay gated in the catalog, search, links and
-// permission pages. The settings hub and first-run remote/Tavern choice no
+// permission pages. The settings hub and first-run remote host connection no
 // longer expose local setup; HarmonyOS still goes straight to the relay.
 
 import 'package:dsh_app/links/page_links.dart';
@@ -12,7 +12,6 @@ import 'package:dsh_app/remote/secret_store.dart';
 import 'package:dsh_app/runtime/runtime_bridge.dart';
 import 'package:dsh_app/runtime/runtime_state.dart';
 import 'package:dsh_app/state/android_features.dart';
-import 'package:dsh_app/state/app_mode_state.dart';
 import 'package:dsh_app/state/connection_state.dart';
 import 'package:dsh_app/state/features_state.dart';
 import 'package:dsh_app/state/hosts_state.dart';
@@ -577,9 +576,11 @@ void main() {
       testWidgets('on $os: remote by default, without local setup; cancelling keeps the choice', (tester) async {
         final rig = await pumpGate(tester, overrides: platform);
         expect(find.byType(RuntimeChoiceView), findsOneWidget);
-        expect(find.byType(RuntimeOptionCard), findsNWidgets(2));
+        expect(find.byType(RuntimeOptionCard), findsOneWidget);
         expect(tester.widget<RuntimeOptionCard>(find.byKey(const ValueKey('runtime-option-remote'))).selected, isTrue);
         expect(find.byKey(const ValueKey('runtime-option-local')), findsNothing);
+        expect(find.byKey(const ValueKey('runtime-option-tavern')), findsNothing);
+        expect(rig.engineStarts, isEmpty);
         await tester.tap(find.widgetWithText(FilledButton, _zh.commonContinue));
         await frames(tester);
         expect(find.byType(RemoteScreen), findsOneWidget);
@@ -594,16 +595,13 @@ void main() {
         expect(rig.runtime.calls, isEmpty);
       });
 
-      testWidgets('on $os: Tavern reaches home without installing or connecting', (tester) async {
+      testWidgets('on $os: the remote host card opens host selection without a local engine', (tester) async {
         final rig = await pumpGate(tester, overrides: platform);
-        await tester.tap(find.byKey(const ValueKey('runtime-option-tavern')));
-        await tester.pump();
-        await tester.tap(find.widgetWithText(FilledButton, _zh.commonContinue));
+        await tester.tap(find.byKey(const ValueKey('runtime-option-remote')));
         await frames(tester);
-        expect(find.text('home'), findsOneWidget);
-        expect(find.byType(RemoteScreen), findsNothing);
-        expect(rig.container.read(appModeProvider).startup, AppMode.tavern);
-        expect(rig.prefs.localDeclined, isTrue);
+        expect(find.byType(RemoteScreen), findsOneWidget);
+        expect(find.text('home'), findsNothing);
+        expect(rig.prefs.localDeclined, isFalse);
         expect(rig.prefs.setupStep, isNull);
         expect(rig.runtime.calls, isEmpty);
         expect(rig.engineStarts, isEmpty);

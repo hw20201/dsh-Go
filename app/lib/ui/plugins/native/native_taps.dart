@@ -32,7 +32,6 @@ import '../../../state/composer_insert.dart';
 import '../../../state/hosts_state.dart';
 import '../../../state/sessions_state.dart';
 import '../../../ui_config/ui_config_model.dart';
-import '../../features/all_features_page.dart' show dshWebOpenerProvider;
 import '../../common/app_dialog.dart';
 import '../../features/feature_catalog.dart';
 import '../../settings/index/settings_pages.dart' show SettingsIndex, settingsPageForLink;
@@ -833,8 +832,6 @@ Future<void> openNativePage(BuildContext context, WidgetRef ref, String id, {Str
     await navigator.push(MaterialPageRoute<void>(builder: (_) => builder(sessionId)));
   } else if (item.action case final action?) {
     await Future.sync(() => action(context, ref, sessionId));
-  } else if (item.webFor(sessionId) case final target?) {
-    ref.read(dshWebOpenerProvider)(context, ref, target);
   }
 }
 

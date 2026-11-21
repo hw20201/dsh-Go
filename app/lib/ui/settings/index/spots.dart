@@ -692,13 +692,6 @@ abstract final class Spots {
     keywords: (l) => l.searchKwHelp,
     condition: SpotCondition.nativeUi,
   );
-  static final community = SettingSpot(
-    'community',
-    page: SettingsPageId.hub,
-    group: _help,
-    title: (l) => l.hubSettingsCommunity,
-    keywords: (l) => l.searchKwCommunity,
-  );
 
   // 模型.
   static final addProvider = SettingSpot(
@@ -913,12 +906,6 @@ abstract final class Spots {
   );
 
   // 界面.
-  static final uiMode = SettingSpot(
-    'ui-mode',
-    page: SettingsPageId.interface,
-    title: (l) => l.hubInterfaceHome,
-    keywords: (l) => l.searchKwUiMode,
-  );
   static final hardwareEnterSends = SettingSpot(
     'hardware-enter-sends',
     page: SettingsPageId.interface,
@@ -942,50 +929,6 @@ abstract final class Spots {
     page: SettingsPageId.interface,
     title: (l) => l.hubTableTint,
     keywords: (l) => l.searchKwTableTint,
-  );
-  static final webApp = SettingSpot(
-    'web-app',
-    page: SettingsPageId.interface,
-    title: (l) => l.commonWeb,
-    keywords: (l) => l.searchKwGeneral,
-    // 通用设置 (gone: its web app fields live here now).
-    link: 'general',
-  );
-  static final openWeb = SettingSpot(
-    'open-web',
-    page: SettingsPageId.interface,
-    title: (l) => l.hubInterfaceOpenWeb,
-    keywords: (l) => l.searchKwOpenWeb,
-  );
-  static final webPhoneLayout = SettingSpot(
-    'web-phone-layout',
-    page: SettingsPageId.interface,
-    title: (l) => l.hubInterfacePhoneLayout,
-    keywords: (l) => l.searchKwWebPhoneLayout,
-  );
-  static final webCodingView = SettingSpot(
-    'web-coding-view',
-    page: SettingsPageId.interface,
-    title: (l) => l.engineGeneralShowCodingView,
-    keywords: (l) => l.searchKwWebCodingView,
-    field: const SpotField(['ui-settings'], 'enabled'),
-    condition: SpotCondition.engineField,
-  );
-  static final webCollapse = SettingSpot(
-    'web-collapse',
-    page: SettingsPageId.interface,
-    title: (l) => l.engineGeneralCollapseTiming,
-    keywords: (l) => l.searchKwWebCollapse,
-    field: const SpotField(['ui-chat'], 'collapseTiming'),
-    condition: SpotCondition.engineField,
-  );
-  static final webBusySend = SettingSpot(
-    'web-busy-send',
-    page: SettingsPageId.interface,
-    title: (l) => l.engineGeneralBusySend,
-    keywords: (l) => l.searchKwWebBusySend,
-    field: const SpotField(['ui-conversation'], 'busyEnter'),
-    condition: SpotCondition.engineField,
   );
 
   // 性能.
@@ -1170,7 +1113,6 @@ final _rows = <SettingSpot>[
   Spots.foldTurns,
   Spots.language,
   Spots.askAi,
-  Spots.community,
   Spots.addProvider,
   Spots.permissionCurrent,
   Spots.permissionDefault,
@@ -1199,17 +1141,10 @@ final _rows = <SettingSpot>[
   Spots.petOverlayFraming,
   Spots.petMake,
   Spots.workshop,
-  Spots.uiMode,
   Spots.hardwareEnterSends,
   Spots.chatSuggestions,
   Spots.quickPanel,
   Spots.tableTint,
-  Spots.webApp,
-  Spots.openWeb,
-  Spots.webPhoneLayout,
-  Spots.webCodingView,
-  Spots.webCollapse,
-  Spots.webBusySend,
   Spots.refreshRate,
   Spots.blur,
   Spots.animations,

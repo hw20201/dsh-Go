@@ -1,4 +1,3 @@
-import 'package:dsh_app/forum/render/cooked.dart';
 import 'package:dsh_app/share_code/share_codec.dart';
 import 'package:dsh_app/share_code/share_link.dart';
 import 'package:dsh_app/share_code/share_models.dart';
@@ -27,17 +26,5 @@ void main() {
     expect(found, isNotNull);
     expect(found!.kind, ShareKind.profile);
     expect(found.code, validCode);
-  });
-
-  test('forum cooked parsing keeps prose around a malformed share href', () {
-    final blocks = parseCooked(
-      '<p>before <a href="$shareLandingUrl#p=%FF">broken link</a> after</p>',
-      base: Uri.parse('https://forum.example/'),
-    );
-    expect(blocks.whereType<CookedShare>(), isEmpty);
-    final prose = blocks.whereType<CookedMarkdown>().map((block) => block.markdown).join('\n');
-    expect(prose, contains('before'));
-    expect(prose, contains('broken link'));
-    expect(prose, contains('after'));
   });
 }

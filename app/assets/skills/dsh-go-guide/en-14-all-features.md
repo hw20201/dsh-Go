@@ -1,11 +1,11 @@
 # All features
 
-Everything from DSH Web is on the phone too: open **All features** from the round button at the bottom of the chat list, or type `/features` in a chat.
+Browse the app’s features: open **All features** from the round button at the bottom of the chat list, or type `/features` in a chat.
 
 <!-- nav: chatChats,hubSettingsAllFeatures -->
 `Chats › All features`
 
-The page is grouped: current chat, automations, plugins, community and sharing, tools, settings. The last group is a shortcut into settings and ends with all settings.
+The page is grouped: current chat, automations, plugins, sharing, tools, settings. The last group is a shortcut into settings and ends with all settings.
 
 ## Current chat
 
@@ -23,6 +23,6 @@ These need an open conversation; without one the page says **No chat open**:
 
 - Automations: scheduled tasks, see [Automations](18-schedules.md).
 - Plugins: installed plugins and the market; plugins with a native UI add their own panel at the end of the group.
-- Community and sharing: forum, community, DS Bot, share profile. A share profile packs chosen settings, plugins, skills and personal preferences into a link, a QR code or a file.
-- Tools: search chats, workspaces, web version.
+- Sharing: DS Bot, share profile. A share profile packs chosen settings, plugins, skills and personal preferences into a link, a QR code or a file.
+- Tools: search chats, workspaces.
 - Settings: the same pages under the same names as the settings screen, reachable from here too.

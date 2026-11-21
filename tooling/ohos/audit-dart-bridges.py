@@ -597,14 +597,11 @@ def application_overrides(source):
     tokens=values(wrapper)
     secret_guard=(has_sequence(tokens,['_injected','==','null'])
                   and has_sequence(tokens,['Platform','.','operatingSystem',')','==','ohos']))
-    # These are the actual five storage-field initializers/getters. An unrelated
+    # These are the actual four storage-field initializers/getters. An unrelated
     # AppSecureStorage() occurrence must not certify the consumer's default.
     consumers=[
         ('app/lib/remote/secret_store.dart','SecureSecretStore',[
             'SecureSecretStore([FlutterSecureStorage? storage]) : _storage = AppSecureStorage(storage);',
-            'final AppSecureStorage _storage;']),
-        ('app/lib/forum/forum_auth.dart','SecureForumStore',[
-            'SecureForumStore([FlutterSecureStorage? storage]) : _storage = AppSecureStorage(storage);',
             'final AppSecureStorage _storage;']),
         ('app/lib/state/settings_state.dart','SettingsController',[
             'static const _secure = AppSecureStorage();']),

@@ -775,7 +775,8 @@ class _Validator {
           issue(pp, UiMessages.packageName);
           continue;
         }
-        final name = choice(mode, pp, UiSchema.seatModes);
+        // Legacy browser-only seats have no target in the native app.
+        final name = mode == 'web' ? 'hidden' : choice(mode, pp, UiSchema.seatModes);
         if (name == null) continue;
         (out[slot] ??= {})[package] = UiSeatMode.values.byName(name);
         entry(UiSettingKey.seat(slot, package), pp, name);
