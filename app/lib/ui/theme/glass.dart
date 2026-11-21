@@ -32,12 +32,14 @@ import 'surfaces.dart';
 /// - 降级:主题里 `DshSurfaces.blurEnabled == false`(设置"减少透明效果"/
 ///   低端机)或系统高对比度时,不创建 `BackdropFilter`,改用近乎不透明的
 ///   `fallbackFill` —— 观感是"磨砂纸",可读性不降。
+/// - 路由切换(push/pop、上面压了新页)时也按 settled=0:过渡动画每一帧背景
+///   都在动,采样等于白烧 GPU;切完 120ms 内淡回玻璃,静止时观感不变。
 ///
 /// ## 为什么阴影要单独画
 ///
 /// 玻璃内部是半透明的,普通 `BoxShadow` 画在形状下方会透过玻璃、又被模糊
 /// 一次,玻璃中间发灰。这里用 even-odd 裁剪,只在形状**外部**画投影。
-class GlassSurface extends StatelessWidget {
+class GlassSurface extends StatefulWidget {
   const GlassSurface({
     super.key,
     this.tier = GlassTier.card,
@@ -88,49 +90,145 @@ class GlassSurface extends StatelessWidget {
   final VoidCallback? onLongPress;
   final Widget? child;
 
+  @override
+  State<GlassSurface> createState() => _GlassSurfaceState();
+
+  static ImageFilterConfig _filterFor(double sigma, double saturation) {
+    final blur = ImageFilterConfig.blur(sigmaX: sigma, sigmaY: sigma, bounded: true);
+    if (saturation == 1) return blur;
+    return ImageFilterConfig.compose(outer: ImageFilterConfig(ColorFilter.matrix(_saturate(saturation))), inner: blur);
+  }
+
+  /// 保亮度的饱和度矩阵(Rec. 709 权重)。
+  static List<double> _saturate(double s) {
+    final r = 0.2126 * (1 - s);
+    final g = 0.7152 * (1 - s);
+    final b = 0.0722 * (1 - s);
+    return <double>[
+      r + s, g, b, 0, 0, //
+      r, g + s, b, 0, 0, //
+      r, g, b + s, 0, 0, //
+      0, 0, 0, 1, 0, //
+    ];
+  }
+}
+
+/// 路由切换时 chrome 玻璃的 settled:切屏(push/pop、上面压了新页)时背景每帧
+/// 都在动,BackdropFilter 每帧重采样等于白烧 GPU。过渡中按 settled=0 处理
+/// (不透明填充、不采样),切完再用 [AppMotion.glassIn] 淡回玻璃,和
+/// [SlidingGlass] 同一套思路。只认"在动"(animation / secondaryAnimation 任一
+/// isAnimating),不认"被盖住":盖住不动时背景是静止的,采样一次就能复用。静止
+/// 时观感、3 个模糊上限、blurEnabled / 高对比度降级都不变;不在路由里
+/// (Overlay、测试裸 widget)时永远是玻璃。
+class _GlassSurfaceState extends State<GlassSurface> with SingleTickerProviderStateMixin {
+  /// 路由停稳后淡回玻璃的进度。1 = 玻璃;过渡一开始立刻置 0。
+  late final AnimationController _routeSettled = AnimationController(
+    vsync: this,
+    duration: AppMotion.glassIn,
+    value: 1,
+  );
+
+  Animation<double>? _route;
+  Animation<double>? _secondary;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    final animation = route?.animation;
+    final secondary = route?.secondaryAnimation;
+    if (!identical(animation, _route) || !identical(secondary, _secondary)) {
+      _route?.removeStatusListener(_syncRoute);
+      _secondary?.removeStatusListener(_syncRoute);
+      _route = animation;
+      _secondary = secondary;
+      _route?.addStatusListener(_syncRoute);
+      _secondary?.addStatusListener(_syncRoute);
+    }
+    // 刚建出来时路由可能已经在动(push 进行中),按当前状态同步一次。
+    _syncRoute();
+  }
+
+  @override
+  void dispose() {
+    _route?.removeStatusListener(_syncRoute);
+    _secondary?.removeStatusListener(_syncRoute);
+    _routeSettled.dispose();
+    super.dispose();
+  }
+
+  /// 路由在动就按 settled=0;都停稳了再淡回玻璃。
+  void _syncRoute([AnimationStatus? _]) {
+    final moving = (_route?.status.isAnimating ?? false) || (_secondary?.status.isAnimating ?? false);
+    if (moving) {
+      if (_routeSettled.value != 0) _routeSettled.value = 0;
+    } else if (_routeSettled.value != 1) {
+      if (AppMotion.reduced(context)) {
+        _routeSettled.value = 1;
+      } else if (!_routeSettled.isForwardOrCompleted) {
+        _routeSettled.forward();
+      }
+    }
+  }
+
+  /// 外面传的 settled(SlidingGlass)与路由 settled 取最小:任一说"在动"就 opaque。
+  double _effectiveSettled() {
+    final settled = widget.settled;
+    if (settled == null) return _routeSettled.value;
+    final route = _routeSettled.value;
+    return settled < route ? settled : route;
+  }
+
   BorderRadiusGeometry get _radius =>
-      borderRadius ??
-      switch (tier) {
+      widget.borderRadius ??
+      switch (widget.tier) {
         GlassTier.chrome || GlassTier.sheet => AppShape.radiusXl,
         GlassTier.card => AppShape.radiusMd,
         GlassTier.pill => AppShape.radiusLg,
       };
 
-  bool get _isStadium => stadium || (!circle && borderRadius == null && tier == GlassTier.pill);
+  bool get _isStadium =>
+      widget.stadium || (!widget.circle && widget.borderRadius == null && widget.tier == GlassTier.pill);
 
   ShapeBorder get _shape {
-    if (circle) return const CircleBorder();
+    if (widget.circle) return const CircleBorder();
     if (_isStadium) return const StadiumBorder();
     return RoundedSuperellipseBorder(borderRadius: _radius);
   }
 
   @override
   Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _routeSettled,
+      builder: (context, child) => _buildGlass(context, _effectiveSettled(), child),
+      child: widget.child,
+    );
+  }
+
+  Widget _buildGlass(BuildContext context, double settled, Widget? child) {
     final surfaces = DshSurfaces.of(context);
-    final s = style ?? surfaces.glass(tier);
+    final s = widget.style ?? surfaces.glass(widget.tier);
     final highContrast = MediaQuery.maybeHighContrastOf(context) ?? false;
     final reduce = !surfaces.blurEnabled || highContrast || uiTraceNoBlur;
-    final useBlur = !reduce && (blur ?? s.blurs);
+    final useBlur = !reduce && (widget.blur ?? s.blurs);
     if (uiTraceEnabled) {
-      uiTrace('glass', 'build', {'tier': tier.name, 'blur': useBlur, 'grouped': grouped});
+      uiTrace('glass', 'build', {'tier': widget.tier.name, 'blur': useBlur, 'grouped': widget.grouped});
     }
-    final fill = useBlur
-        ? Color.lerp(s.fallbackFill, s.fill, settled ?? 1)!
-        : (reduce || s.blurs ? s.fallbackFill : s.fill);
+    final fill = useBlur ? Color.lerp(s.fallbackFill, s.fill, settled)! : (reduce || s.blurs ? s.fallbackFill : s.fill);
     final shape = _shape;
     final textDirection = Directionality.maybeOf(context);
 
     Widget content = child ?? const SizedBox.shrink();
-    if (padding != null) content = Padding(padding: padding!, child: content);
-    if (onTap != null || onLongPress != null) {
+    if (widget.padding != null) content = Padding(padding: widget.padding!, child: content);
+    if (widget.onTap != null || widget.onLongPress != null) {
       // Press feedback on the content, not the glass: scaling a surface that
       // blurs would re-sample what is behind it at a new size every frame.
       content = Material(
         type: MaterialType.transparency,
         child: InkWell(
           customBorder: shape,
-          onTap: onTap,
-          onLongPress: onLongPress,
+          onTap: widget.onTap,
+          onLongPress: widget.onLongPress,
           child: Pressable(behavior: HitTestBehavior.translucent, child: content),
         ),
       );
@@ -151,9 +249,9 @@ class GlassSurface extends StatelessWidget {
     );
 
     if (useBlur) {
-      final config = _filterFor(s.blurs ? s.blurSigma : 14, s.saturation);
+      final config = GlassSurface._filterFor(s.blurs ? s.blurSigma : 14, s.saturation);
       final sampling = settled != 0;
-      content = grouped
+      content = widget.grouped
           ? BackdropFilter.grouped(filterConfig: config, enabled: sampling, child: content)
           : BackdropFilter(filterConfig: config, enabled: sampling, child: content);
       content = _clip(content);
@@ -169,30 +267,11 @@ class GlassSurface extends StatelessWidget {
   }
 
   Widget _clip(Widget child) {
-    if (circle) return ClipOval(child: child);
+    if (widget.circle) return ClipOval(child: child);
     if (_isStadium) {
       return ClipRRect(borderRadius: const BorderRadius.all(Radius.circular(999)), child: child);
     }
     return ClipRSuperellipse(borderRadius: _radius, child: child);
-  }
-
-  static ImageFilterConfig _filterFor(double sigma, double saturation) {
-    final blur = ImageFilterConfig.blur(sigmaX: sigma, sigmaY: sigma, bounded: true);
-    if (saturation == 1) return blur;
-    return ImageFilterConfig.compose(outer: ImageFilterConfig(ColorFilter.matrix(_saturate(saturation))), inner: blur);
-  }
-
-  /// 保亮度的饱和度矩阵(Rec. 709 权重)。
-  static List<double> _saturate(double s) {
-    final r = 0.2126 * (1 - s);
-    final g = 0.7152 * (1 - s);
-    final b = 0.0722 * (1 - s);
-    return <double>[
-      r + s, g, b, 0, 0, //
-      r, g + s, b, 0, 0, //
-      r, g, b + s, 0, 0, //
-      0, 0, 0, 1, 0, //
-    ];
   }
 }
 
