@@ -77,6 +77,13 @@ class DrawerConversationList extends ConsumerWidget {
 
     Widget tile(SessionSummary s, {bool inFolder = false}) {
       final id = s.sessionId;
+      // A visible row without a title gets its read queued (scroll-to-read):
+      // the list only reads the newest [titleReadsPerList] on load.
+      if ((s.title?.trim().isEmpty ?? true) && !s.isSubagent && !s.blank) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (context.mounted) ref.read(sessionsProvider.notifier).ensureTitle(id);
+        });
+      }
       return SessionTile(
         key: ValueKey('session-$id'),
         title: sessionTitle(s),

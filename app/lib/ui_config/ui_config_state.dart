@@ -20,6 +20,7 @@ import '../state/appearance_state.dart';
 import '../state/connection_state.dart';
 import '../state/drawer_view_state.dart';
 import '../state/hosts_state.dart';
+import '../state/sessions_state.dart';
 import '../state/settings_state.dart';
 import '../ui/theme/accent.dart';
 import 'ui_config_ignores.dart';
@@ -80,7 +81,16 @@ UiConfigSource? defaultUiConfigSource(Ref ref, HostRef host) {
   if (ref.watch(activeHostProvider) != host) return null;
   final conn = ref.watch(activeConnectionProvider.select((c) => c.value));
   if (conn == null || conn.isLocal || conn.kind != host.kind || conn.hostId != host.id) return null;
-  return RemoteUiConfigSource(host: DshUiRemoteHost(conn.client), kicks: ref.watch(uiConfigKicksProvider));
+  return RemoteUiConfigSource(
+    host: DshUiRemoteHost(
+      conn.client,
+      sessionsSupplier: () {
+        if (!ref.read(sessionsProvider).hasValue) return null;
+        return ref.read(sessionsProvider.notifier).allSessions;
+      },
+    ),
+    kicks: ref.watch(uiConfigKicksProvider),
+  );
 }
 
 // ── One host's file ─────────────────────────────────────────────────────────
