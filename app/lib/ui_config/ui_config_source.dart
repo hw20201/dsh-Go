@@ -603,16 +603,20 @@ class RemoteUiConfigSource implements UiConfigSource {
 
 /// [UiRemoteHost] over a connected [DshClient].
 class DshUiRemoteHost implements UiRemoteHost {
-  DshUiRemoteHost(this.client);
+  /// [sessionsSupplier] reuses the drawer's already-loaded list when
+  /// provided (null while the controller hasn't loaded one yet): finding
+  /// the most recent session must not read the whole list again.
+  DshUiRemoteHost(this.client, {this.sessionsSupplier});
 
   final DshClient client;
+  final List<SessionSummary>? Function()? sessionsSupplier;
 
   @override
   bool supports(String endpoint) => client.supportsEndpoint(endpoint);
 
   @override
   Future<String?> recentSessionId() async {
-    final sessions = await client.listSessions();
+    final sessions = sessionsSupplier?.call() ?? await client.listSessions();
     if (sessions.isEmpty) return null;
     final ranked = [...sessions]
       ..sort((a, b) {

@@ -143,6 +143,18 @@ class SessionsController extends AsyncNotifier<List<SessionSummary>> {
   /// once more after that one ([refresh]).
   Future<void>? _afterBuild;
 
+  /// Last successful [_refreshNow], and the change count it covered. A
+  /// non-forced refresh within [_listMinInterval] of it is dropped, unless a
+  /// change the list hasn't covered arrived since, a read is still out, or
+  /// the last attempt failed: those always read. (DSH Mobile's
+  /// RefreshThrottle, but a real change is never throttled away.)
+  static const _listMinInterval = Duration(seconds: 4);
+  DateTime? _lastRefreshAt;
+  int _changeSeq = 0;
+  int _readCoveredSeq = 0;
+  int _refreshesOut = 0;
+  bool _lastRefreshFailed = false;
+
   /// A host event in the debounce window changed a conversation.
   bool _debouncedChange = false;
 
@@ -172,8 +184,9 @@ class SessionsController extends AsyncNotifier<List<SessionSummary>> {
   Object? _titlesUnsupported;
   Timer? _titlesLanded;
 
-  /// Rows read per list: the newest first, the rest on later lists.
-  static const titleReadsPerList = 40;
+  /// Rows read per list: the newest first, the rest on later lists or
+  /// when scrolled into view ([ensureTitle]).
+  static const titleReadsPerList = 15;
 
   /// Reads at a time: each one folds a whole conversation log on the Host.
   static const titleReadsAtOnce = 2;
@@ -239,6 +252,11 @@ class SessionsController extends AsyncNotifier<List<SessionSummary>> {
           event is SessionStatusEvent ||
           event is HostReadyEvent) {
         if (_applyInPlace(event)) return;
+        // A change the list hasn't covered yet (a read that already ran
+        // cannot include it): the refresh below must not be throttled away.
+        // Ready counts too: a read that started before the host became
+        // ready does not cover the ready event.
+        _changeSeq++;
         // Ready alone changes no conversation: it doesn't read the list a
         // second time behind the one a (re)connection is reading.
         final readyAt = event is HostReadyEvent ? _loadSeq : null;
@@ -251,7 +269,9 @@ class SessionsController extends AsyncNotifier<List<SessionSummary>> {
           // A pre-ready response, newer pending/failing read or later change
           // still needs the existing recovery path.
           if (!change && readyAt != null && _appliedRefreshSeq == _loadSeq && _appliedRefreshSeq > readyAt) return;
-          unawaited(_refresh(afterBuild: change));
+          // A real change forces the read ([_refreshNow] throttles only the
+          // redundant, HostReady-only kind).
+          unawaited(_refresh(afterBuild: change, force: change));
         });
       }
     });
@@ -279,6 +299,9 @@ class SessionsController extends AsyncNotifier<List<SessionSummary>> {
   }
 
   Future<List<SessionSummary>> _load(Ref r, DshClient client, int seq, ReadListIdentity? identity) async {
+    // The change count when this read started: a change that arrives while
+    // the read is out is not covered by it, even if the read lands after.
+    final coveredSeq = _changeSeq;
     final List<SessionSummary> sessions;
     _listsOut++;
     try {
@@ -294,6 +317,12 @@ class SessionsController extends AsyncNotifier<List<SessionSummary>> {
       final cache = r.read(readListCacheProvider);
       cache.stamp(sessions, identity, client);
       _origin = cache.origin(sessions);
+      // This read landed: a non-forced refresh within [_listMinInterval]
+      // with no newer change is redundant (covers the afterBuild second
+      // read right after the build's first one).
+      _lastRefreshAt = DateTime.now();
+      _readCoveredSeq = coveredSeq;
+      _lastRefreshFailed = false;
       _readTitles(r, client);
     }
     return _visible();
@@ -406,6 +435,23 @@ class SessionsController extends AsyncNotifier<List<SessionSummary>> {
     reads.queue
       ..clear()
       ..addAll(queue);
+    _nextTitles(reads);
+  }
+
+  /// Queue a title read for [sessionId] (a row scrolled into view). No-op
+  /// when the row doesn't need one, is already queued/running, or the
+  /// client can't read titles this way. The read respects [titleReadsAtOnce]
+  /// and the failure backoff, like the list's own reads; the visible row
+  /// goes first.
+  void ensureTitle(String sessionId) {
+    final reads = _titleReads;
+    if (reads == null || reads.retired) return;
+    if (identical(_titlesUnsupported, reads.client)) return;
+    final now = reads.now();
+    final row = _all.where((s) => s.sessionId == sessionId).firstOrNull;
+    if (row == null || !_needsTitle(row, now)) return;
+    if (reads.queue.any((s) => s.sessionId == sessionId)) return;
+    reads.queue.addFirst(row);
     _nextTitles(reads);
   }
 
@@ -523,11 +569,13 @@ class SessionsController extends AsyncNotifier<List<SessionSummary>> {
   /// was asked for before the change that wants this refresh (a conversation
   /// added or started meanwhile), which would otherwise wait for the next
   /// event — a new conversation untitled, or missing, until its turn ends.
-  Future<void> refresh() => _refresh(afterBuild: true);
+  /// A user action or a mutation whose result must show: always reads at
+  /// once (a background refresh may be throttled; see [_refreshNow]).
+  Future<void> refresh() => _refresh(afterBuild: true, force: true);
 
   /// [refresh]; without [afterBuild] only the list being read lands (a host
   /// event that changed no conversation).
-  Future<void> _refresh({required bool afterBuild}) async {
+  Future<void> _refresh({required bool afterBuild, bool force = false}) async {
     final r = ref;
     final conn = r.read(readListLiveConnectionProvider);
     if (conn == null) return;
@@ -541,19 +589,32 @@ class SessionsController extends AsyncNotifier<List<SessionSummary>> {
       }
       if (!afterBuild || !r.mounted) return;
       // Refreshes asked for meanwhile share the one read.
-      return _afterBuild ??= _refreshNow().whenComplete(() => _afterBuild = null);
+      return _afterBuild ??= _refreshNow(force: force).whenComplete(() => _afterBuild = null);
     }
-    return _refreshNow();
+    return _refreshNow(force: force);
   }
 
-  Future<void> _refreshNow() async {
+  Future<void> _refreshNow({bool force = false}) async {
     final r = ref;
     final conn = r.read(readListLiveConnectionProvider);
     if (conn == null) return;
+    // Throttle: a non-forced refresh is dropped when the last one succeeded
+    // within [_listMinInterval] and nothing new arrived since. A real change
+    // (a bumped [_changeSeq]), a read still out, or a failed last attempt
+    // always reads: the list must not miss a conversation.
+    if (!force &&
+        _lastRefreshAt != null &&
+        _refreshesOut == 0 &&
+        !_lastRefreshFailed &&
+        _changeSeq == _readCoveredSeq &&
+        DateTime.now().difference(_lastRefreshAt!) < _listMinInterval) {
+      return;
+    }
     final seq = ++_loadSeq;
     final identity = r.read(readListIdentityProvider);
     final cache = r.read(readListCacheProvider);
     final activity = cache.beginRefresh(ReadListKind.sessions, identity);
+    _refreshesOut++;
     try {
       final sessions = await _load(r, conn.client, seq, identity);
       if (r.mounted && seq == _loadSeq) {
@@ -563,10 +624,13 @@ class SessionsController extends AsyncNotifier<List<SessionSummary>> {
       }
     } catch (error, stack) {
       // A failed background refresh keeps the list it had.
+      _lastRefreshFailed = true;
       if (r.mounted && seq == _loadSeq) {
         cache.finishRefresh(ReadListKind.sessions, activity, failed: true);
         if (!state.hasValue) state = AsyncError(error, stack);
       }
+    } finally {
+      _refreshesOut--;
     }
   }
 
@@ -727,12 +791,19 @@ class SessionsController extends AsyncNotifier<List<SessionSummary>> {
       pending._closeWindow();
       final archived = <String>[];
       final failed = <String>[];
+      // One list read for the whole batch, not one per id: the commit only
+      // needs to know each id still exists before archiving it.
+      List<SessionSummary>? current;
+      try {
+        current = await conn.client.listSessions();
+      } catch (_) {
+        current = null;
+      }
       for (final id in ids) {
         if (!pending.owned) break;
         try {
-          final current = await conn.client.listSessions();
-          if (!pending.owned) break;
-          if (!current.any((row) => row.sessionId == id && !row.blank && !row.isSubagent)) {
+          if (current != null &&
+              !current.any((row) => row.sessionId == id && !row.blank && !row.isSubagent)) {
             failed.add(id);
             continue;
           }

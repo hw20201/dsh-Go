@@ -11,13 +11,14 @@ import 'settings_state.dart';
 
 /// `session/modelCatalog` of the active host (null while disconnected).
 ///
-/// DSH 0.2.1 lists no models until a provider credential exists, so the
-/// catalog is re-read when the key saved in the app changes and again when
-/// the Host confirms the credential (`credentials/reference-updated`) or its
-/// adapters change (`llm/adapters-updated`): the app pushes the key to DSH
-/// asynchronously, and the first re-read can beat it. A custom provider's
-/// model edits (thinking levels, names) change no route, so the pi-ai
-/// section's own update counts too.
+/// The catalog is cached (10-minute TTL, [ReadListCache]): a (re)connection
+/// or a credential confirmation does not re-read it. Only a real model
+/// change does — the adapters changing (`llm/adapters-updated`), or a model
+/// edit in the app (the pi-ai section, or the default-model setting). A
+/// manual refresh invalidates the provider, which clears the cache below.
+/// DSH 0.2.1 lists no models until a provider credential exists; the app
+/// pushes the key to DSH asynchronously, and the adapters change when the
+/// credential lands, so `llm/adapters-updated` covers the first read too.
 final modelCatalogProvider = FutureProvider<ModelCatalog?>((ref) async {
   final conn = ref.watch(readListLiveConnectionProvider);
   if (conn == null) return null;
@@ -26,18 +27,33 @@ final modelCatalogProvider = FutureProvider<ModelCatalog?>((ref) async {
   ref.watch(settingsProvider.select((s) => s.apiKey));
   final sub = conn.client.hostEvents.listen((event) {
     final refresh = switch (event) {
-      CredentialUpdatedEvent() || HostReadyEvent() => true,
       SettingsUpdatedEvent(:final namespace) => namespace == piAiSettingsNs || namespace == defaultModelSettingsNs,
       UnknownHostEvent(:final event) => event == 'llm/adapters-updated',
       _ => false,
     };
-    if (refresh && ref.mounted) ref.invalidateSelf();
+    if (refresh && ref.mounted) {
+      // A real model change: drop the cached catalog so the rebuild below
+      // reads fresh instead of serving the TTL copy.
+      cache.invalidate(readListKey(identity, ReadListKind.models));
+      ref.invalidateSelf();
+    }
   });
   ref.onDispose(() => unawaited(sub.cancel()));
+  // Within the cache TTL, serve the last catalog instead of re-reading:
+  // reconnects and credential confirmations must not re-fetch the directory.
+  // But only when the cached catalog belongs to this client: a different
+  // host (a newly constructed client) always reads fresh.
+  final cached = cache.get<CachedModels>(readListKey(identity, ReadListKind.models));
+  if (cached != null && cache.current(cached.value, identity, conn.client)) return cached.value;
   final catalog = await conn.client.listModels();
   if (ref.mounted) {
     cache.stamp(catalog, identity, conn.client);
     cache.put(readListKey(identity, ReadListKind.models), catalog, () => CachedModels(catalog));
+    // The display copy loses the catalog's origin: stamp the copy too, so
+    // a later read can tell which client it came from (a different host
+    // must read fresh; the same client's reconnect serves the cache).
+    final stored = cache.get<CachedModels>(readListKey(identity, ReadListKind.models));
+    if (stored != null) cache.stamp(stored.value, identity, conn.client);
   }
   return catalog;
 });
@@ -71,24 +87,13 @@ const defaultModelSettingsNs = 'agent-default-model';
 
 /// A picker belongs to one host/connection lifetime, including same-client
 /// reconnects and A -> B -> A. It must not acquire a new destination later.
+/// A mux reconnect does not end the lifetime (same host, same connection),
+/// so it must not invalidate the scope: that would rebuild every picker
+/// and re-read the model catalog on every reconnect.
 final modelSelectionScopeProvider = Provider<Object>((ref) {
   ref.watch(activeHostProvider);
   ref.watch(activeConnectionProvider);
-  final connection = ref.watch(readListLiveConnectionProvider);
-  if (connection != null) {
-    final client = connection.client;
-    final generation = client.mux.generation;
-    final sub = client.mux.states.listen((state) {
-      if (ref.mounted &&
-          (!identical(generation, client.mux.generation) ||
-              state == DshConnectionState.reconnecting ||
-              state == DshConnectionState.unauthorized ||
-              state == DshConnectionState.closed)) {
-        ref.invalidateSelf();
-      }
-    });
-    ref.onDispose(() => unawaited(sub.cancel()));
-  }
+  ref.watch(readListLiveConnectionProvider);
   return Object();
 });
 

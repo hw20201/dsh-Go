@@ -493,6 +493,12 @@ class HostAlertTracker {
   Timer? _reconcile;
   bool _disposed = false;
 
+  /// A [_resync] in flight, and whether it is a seed-only one. Concurrent
+  /// resyncs share the one read; a full resync asked for while only a seed
+  /// is running still runs after it (the seed skips the missed-idle pass).
+  Future<void>? _resyncing;
+  bool _resyncingSeedOnly = false;
+
   final Map<String, SessionSummary> _sessions = {};
   final Map<String, bool> _running = {};
   final Map<String, MuxGeneration> _companionRunning = {};
@@ -806,8 +812,27 @@ class HostAlertTracker {
   }
 
   /// Refreshes the session list; turns that ended while we were disconnected
-  /// (running before, idle now) alert like a live falling edge.
+  /// (running before, idle now) alert like a live falling edge. Concurrent
+  /// resyncs share the one list read instead of each reading it.
   Future<void> _resync({bool seedOnly = false}) async {
+    final inFlight = _resyncing;
+    if (inFlight != null) {
+      await inFlight;
+      // A full resync asked for while only a seed was running still runs:
+      // the seed skips the missed-idle pass below.
+      if (seedOnly || !_resyncingSeedOnly) return;
+    }
+    final future = _resyncInner(seedOnly: seedOnly);
+    _resyncing = future;
+    _resyncingSeedOnly = seedOnly;
+    try {
+      await future;
+    } finally {
+      if (identical(_resyncing, future)) _resyncing = null;
+    }
+  }
+
+  Future<void> _resyncInner({bool seedOnly = false}) async {
     final revision = _revision;
     final generation = _generation;
     final provenance = _readyProvenance;

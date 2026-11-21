@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'connection_state.dart';
+import 'sessions_state.dart';
 
 /// Candidate lookups behind the `@` picker (a seam for tests).
 abstract class MentionSource {
@@ -23,8 +24,12 @@ abstract class MentionSource {
 }
 
 class ClientMentionSource implements MentionSource {
-  ClientMentionSource(this.client);
+  /// [sessionsSupplier] reuses the drawer's already-loaded list when
+  /// provided (null while the controller hasn't loaded one yet): the
+  /// @-mention picker must not read the whole list again for every open.
+  ClientMentionSource(this.client, {this.sessionsSupplier});
   final DshClient client;
+  final List<SessionSummary>? Function()? sessionsSupplier;
 
   @override
   Future<List<FileReferenceCandidate>> files(String sessionId, String query) => client.fileReferences(sessionId, query);
@@ -34,14 +39,22 @@ class ClientMentionSource implements MentionSource {
       client.sessionReferences(sessionId, query);
 
   @override
-  Future<List<SessionSummary>> allSessions() => client.listSessions();
+  Future<List<SessionSummary>> allSessions() async => sessionsSupplier?.call() ?? await client.listSessions();
 }
 
 /// The active host's lookups; null while disconnected.
 final mentionSourceProvider = Provider<MentionSource?>((ref) {
   final client = ref.watch(activeConnectionProvider).value?.client;
   if (client == null || !client.canListReferences) return null;
-  return ClientMentionSource(client);
+  return ClientMentionSource(
+    client,
+    sessionsSupplier: () {
+      // The controller's list, when it has one; null until loaded (then the
+      // source reads the list itself, once).
+      if (!ref.read(sessionsProvider).hasValue) return null;
+      return ref.read(sessionsProvider.notifier).allSessions;
+    },
+  );
 });
 
 /// One picked reference, for the 「最近」 rows.
